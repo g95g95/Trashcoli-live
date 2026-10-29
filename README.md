@@ -3,7 +3,7 @@ repo per mostrare un world model di trashcoli
 
 ## Dentro Faraona
 
-Nove luoghi di Faraona ricostruiti in 3D dalle foto dei Trashcoli, cinque fuori e quattro dentro, da esplorare in prima persona sotto una pioggia di cenere.
+Nove luoghi di Faraona ricostruiti in 3D dalle foto dei Trashcoli, cinque fuori e quattro dentro, da esplorare in prima persona sotto una pioggia di cenere. Le foto sono stanze affacciate su un unico corridoio, e si passa dall'una all'altra camminando.
 
 **Gioca online:** https://g95g95.github.io/Trashcoli-live/
 
@@ -20,7 +20,7 @@ Versione da stampare, con titolo e indirizzo sotto il codice: [`qr_stampa.png`](
 | F: torcia · E: leggi il foglio nella cappella | Pulsanti in alto: cenere, torcia, vento |
 | 1–9: salta a un luogo · Esc: libera il mouse | Pulsanti in basso: luoghi |
 
-Per passare al luogo successivo cammini dentro la colonna di brace.
+Ogni porta del corridoio si apre su una foto: entri, ti guardi intorno, esci e prosegui verso la porta successiva. Appena oltre la porta sei nel punto esatto da cui è stata scattata la foto. A metà corridoio una soglia separa i luoghi di fuori da quelli di dentro. In fondo al corridoio, da tutte e due le parti, c'è una porta di brace: entri in una ed esci dall'altra, così il percorso non finisce.
 
 ## Altri modi per avviarlo
 
@@ -37,9 +37,9 @@ GitHub Pages è il servizio di GitHub che pubblica come sito i file di un repo. 
 
 ## Com'è fatto
 
-- `index.html` — il motore, scritto con three.js, una libreria JavaScript per la grafica 3D nel browser via WebGL. Per ogni foto costruisce una superficie in rilievo e aggiunge la cenere che cade, quella che si posa col tempo, la nebbia, la torcia e il vento. Il vento è rumore generato al momento, senza file audio.
+- `index.html` — il motore, scritto con three.js, una libreria JavaScript per la grafica 3D nel browser via WebGL. Per ogni foto costruisce una superficie in rilievo e una stanza chiusa attorno. Le pareti della stanza mostrano la foto proiettata dal punto di ripresa: dentro l'inquadratura combaciano con la foto, fuori ne allungano i bordi e poi la sfumano in un muro scuro dei suoi colori. Le stanze si affacciano a destra e a sinistra su un corridoio disegnato dal programma, di pietra fuori e di intonaco e cementine dentro, illuminato dalla luce che esce dalle porte. Poi aggiunge la cenere che cade, quella che si posa col tempo, la nebbia, la torcia e il vento. Il vento è rumore generato al momento, senza file audio.
 - `lib/three.module.js` — three.js r160, licenza MIT (`lib/LICENSE-three.txt`).
-- `dati/` — per ogni luogo: `sN.jpg` (la foto), `sN_d.png` (profondità in millimetri su 16 bit nei canali rosso e verde, cielo nel canale blu), `world.json` (orientamento, griglia dei punti calpestabili, posizione del varco). Il file `s6_doc.jpg` è il foglio *Le Lampade Viventi* trovato nella cappella.
+- `dati/` — per ogni luogo: `sN.jpg` (la foto), `sN_d.png` (profondità in millimetri su 16 bit nei canali rosso e verde, cielo nel canale blu), `world.json` (orientamento, griglia dei punti calpestabili, posizione del varco; il motore attuale non usa più il varco, perché le stanze si raggiungono dal corridoio). Il file `s6_doc.jpg` è il foglio *Le Lampade Viventi* trovato nella cappella.
 - `strumenti/build_world.py` — la pipeline che dalle foto genera `dati/`.
 - `strumenti/assemble_standalone.py` — impacchetta tutto nel file unico, partendo da `strumenti/pagina_sorgente.html` e `strumenti/three.min.js`.
 
@@ -55,4 +55,4 @@ La profondità viene stimata con Depth Anything ViT-S, una rete neurale che da u
 
 ## Limiti
 
-Ogni luogo esiste solo dove la foto ha visto qualcosa: fuori dall'inquadratura c'è una distesa di cenere nella foschia. Nelle foto ravvicinate (televisore, carrozzina, brande) lo spazio calpestabile è di pochi metri quadrati. Le profondità sono stimate, non misurate, quindi le proporzioni sono plausibili ma non esatte.
+Ogni luogo è in rilievo solo dove la foto ha visto qualcosa: fuori dall'inquadratura le pareti della stanza ripetono la foto allungata e sfocata, quindi sono macchie di colore e non oggetti. Il corridoio non viene dalle foto, è inventato. Più ti allontani dal punto di ripresa, più il rilievo si deforma: le figure sottili, come la persona nella cappella, viste di lato diventano teli stirati. Nelle foto ravvicinate (televisore, carrozzina, brande) lo spazio calpestabile è di pochi metri quadrati. Le profondità sono stimate, non misurate, quindi le proporzioni sono plausibili ma non esatte.
