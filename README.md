@@ -19,6 +19,9 @@ Versione da stampare, con titolo e indirizzo sotto il codice: [`qr_stampa.png`](
 | W A S D o frecce: cammina, Shift: corri | Resto dello schermo: trascina per guardare |
 | F: torcia · E: leggi il foglio nella cappella | Pulsanti in alto: cenere, torcia, vento |
 | 1–9: salta a un luogo · Esc: libera il mouse | Pulsanti in basso: luoghi |
+| | Giroscopio (in alto): guarda muovendo il telefono |
+
+Con il giroscopio acceso il telefono diventa una finestra sul luogo: lo alzi e guardi in alto, ti giri e la vista gira con te. Il dito continua a funzionare: trascinando in orizzontale ti giri senza muoverti dalla sedia, in verticale correggi l'altezza dello sguardo se tieni il telefono inclinato. Su iPhone il browser chiede il permesso a *Movimento e orientamento* la prima volta. Finché il giroscopio è acceso lo schermo non si spegne da solo. La scelta viene ricordata: la volta dopo il giroscopio si riaccende quando premi Entra.
 
 Ogni porta del corridoio si apre su una foto: entri, ti guardi intorno, esci e prosegui verso la porta successiva. Appena oltre la porta sei nel punto esatto da cui è stata scattata la foto. A metà corridoio una soglia separa i luoghi di fuori da quelli di dentro. In fondo al corridoio, da tutte e due le parti, c'è una porta di brace: entri in una ed esci dall'altra, così il percorso non finisce.
 
@@ -37,7 +40,7 @@ GitHub Pages è il servizio di GitHub che pubblica come sito i file di un repo. 
 
 ## Com'è fatto
 
-- `index.html` — il motore, scritto con three.js, una libreria JavaScript per la grafica 3D nel browser via WebGL. Per ogni foto costruisce una superficie in rilievo e una stanza chiusa attorno. Le pareti della stanza mostrano la foto proiettata dal punto di ripresa: dentro l'inquadratura combaciano con la foto, fuori ne allungano i bordi e poi la sfumano in un muro scuro dei suoi colori. Le stanze si affacciano a destra e a sinistra su un corridoio disegnato dal programma, di pietra fuori e di intonaco e cementine dentro, illuminato dalla luce che esce dalle porte. Poi aggiunge la cenere che cade, quella che si posa col tempo, la nebbia, la torcia e il vento. Il vento è rumore generato al momento, senza file audio.
+- `index.html` — il motore, scritto con three.js, una libreria JavaScript per la grafica 3D nel browser via WebGL. Per ogni foto costruisce una superficie in rilievo e una stanza chiusa attorno. Le pareti della stanza mostrano la foto proiettata dal punto di ripresa: dentro l'inquadratura combaciano con la foto, fuori ne allungano i bordi e poi la sfumano in un muro scuro dei suoi colori. Le stanze si affacciano a destra e a sinistra su un corridoio disegnato dal programma, di pietra fuori e di intonaco e cementine dentro, illuminato dalla luce che esce dalle porte. Poi aggiunge la cenere che cade, quella che si posa col tempo, la nebbia, la torcia e il vento. Il vento è rumore generato al momento, senza file audio. Sul telefono il giroscopio legge l'orientamento con la Generic Sensor API dove c'è (Chrome su Android), altrimenti con l'evento `deviceorientation` (Safari su iPhone e gli altri browser), e tiene conto della rotazione dello schermo.
 - `lib/three.module.js` — three.js r160, licenza MIT (`lib/LICENSE-three.txt`).
 - `dati/` — per ogni luogo: `sN.jpg` (la foto), `sN_d.png` (profondità in millimetri su 16 bit nei canali rosso e verde, cielo nel canale blu), `world.json` (orientamento, griglia dei punti calpestabili, posizione del varco; il motore attuale non usa più il varco, perché le stanze si raggiungono dal corridoio). Il file `s6_doc.jpg` è il foglio *Le Lampade Viventi* trovato nella cappella.
 - `strumenti/build_world.py` — la pipeline che dalle foto genera `dati/`.

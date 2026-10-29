@@ -22,8 +22,8 @@ rep2 = ("<script>\n" + three.read_text() + "\n</script>\n<script>\nconst WORLD =
         + json.dumps(world, separators=(",", ":")) + ";\n(function () {\n")
 html, n2 = re.subn(r'<script type="module">\s*import \* as THREE from "three";', lambda m: rep2, html)
 html, n3 = re.subn(r'world = await \(await fetch\("world\.json"\)\)\.json\(\);', "world = WORLD;", html)
-html, n4 = re.subn(r"window\.__faraona = \{ player, goTo, U \};\s*</script>",
-                   lambda m: "window.__faraona = { player, goTo, U };\n})();\n</script>", html)
+html, n4 = re.subn(r"(window\.__faraona = \{[^}]*\};)\s*</script>",
+                   lambda m: m.group(1) + "\n})();\n</script>", html)
 assert (n1, n2, n3, n4) == (1, 1, 1, 1), (n1, n2, n3, n4)
 
 head = ('<!doctype html>\n<html lang="it">\n<head>\n<meta charset="utf-8">\n'

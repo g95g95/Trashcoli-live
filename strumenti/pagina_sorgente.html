@@ -93,6 +93,9 @@ body {
 .docview img { max-height: 78vh; max-width: 100%; width: auto; border-radius: 2px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
 .docview figcaption { font-size: var(--s-2); color: var(--ash); text-align: center; }
 .mono { font-family: var(--f-mono); font-size: var(--s-1); letter-spacing: 0.04em; }
+.note { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); max-width: min(calc(100vw - 32px), 26rem); z-index: 10;
+  font-size: var(--s-2); line-height: 1.45; text-align: center; color: var(--bone); background: var(--glass); border: 1px solid var(--line);
+  border-radius: 3px; padding: 10px 14px; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 @media (pointer: coarse) { .desk { display: none; } }
 @media (pointer: fine) { .touch { display: none; } }
 @media (prefers-reduced-motion: reduce) { .gate, .fade { transition: none; } }
@@ -113,6 +116,7 @@ body {
       <button class="btn" id="bAsh" type="button" title="Intensità della cenere">Cenere: fitta</button>
       <button class="btn" id="bTorch" type="button" aria-pressed="false" title="Torcia (F)">Torcia</button>
       <button class="btn" id="bAudio" type="button" aria-pressed="false" title="Vento">Vento</button>
+      <button class="btn" id="bGyro" type="button" aria-pressed="false" title="Guarda muovendo il telefono" hidden>Giroscopio</button>
     </div>
   </div>
   <div></div>
@@ -131,6 +135,7 @@ body {
   <button class="btn" id="docClose" type="button">Rimettilo giù</button>
 </div>
 <div class="stick" id="stick" hidden><i id="knob"></i></div>
+<div class="note" id="note" role="status" aria-live="polite" hidden></div>
 <div class="fade" id="fade"></div>
 
 <div class="gate" id="gate">
@@ -147,6 +152,7 @@ body {
     <div class="keys touch">
       <kbd>Pollice sinistro</kbd><span>trascina per camminare</span>
       <kbd>Resto dello schermo</kbd><span>trascina per guardare</span>
+      <kbd class="gyro-hint">Giroscopio</kbd><span class="gyro-hint">in alto: guarda muovendo il telefono</span>
     </div>
     <button class="enter" id="enter" type="button" disabled>Entra</button>
     <span class="load" id="load">Carico le stanze…</span>
@@ -183,7 +189,7 @@ renderer.setClearColor(FOG);
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(FOG, 0.06);
 const camera = new THREE.PerspectiveCamera(63, 1, 0.05, 140);
-camera.rotation.order = "YXZ";
+camera.rotation.order = "YZX"; // rollio prima del beccheggio: col giroscopio non ci sono poli in alto e in basso
 scene.add(camera);
 
 function resize() {
@@ -819,7 +825,7 @@ function free(x, z) {
 }
 
 // ---------- stato del giocatore ----------
-const player = { x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0 };
+const player = { x: 0, z: 0, yaw: 0, pitch: 0, roll: 0, vx: 0, vz: 0, bob: 0 };
 const input = { f: 0, s: 0, run: false, jx: 0, jy: 0 };
 // nel punto di ripresa, guardando esattamente come la fotografia originale
 function placeAt(r) {
@@ -828,6 +834,7 @@ function placeAt(r) {
   const [dx, dz] = rot(...rot(-R[0][2], -R[2][2], r.beta), r.theta);
   player.yaw = Math.atan2(-dx, -dz);
   player.pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(-R[1][2], -1, 1)), -1.35, 1.35);
+  gyro.align = gyro.snap = true;
 }
 
 let busy = false, arrivedAt = 0;
@@ -867,6 +874,12 @@ document.addEventListener("mousemove", (e) => {
   look(e.movementX, e.movementY, 0.0022);
 });
 function look(dx, dy, k) {
+  if (gyro.live) {
+    // col giroscopio il dito sposta la direzione di riferimento, il telefono fa il resto
+    gyro.yawOff -= dx * k;
+    gyro.pitchOff = THREE.MathUtils.clamp(gyro.pitchOff - dy * k, -GYRO_PITCH - gyro.dev, GYRO_PITCH - gyro.dev);
+    return;
+  }
   player.yaw -= dx * k;
   player.pitch = THREE.MathUtils.clamp(player.pitch - dy * k, -1.35, 1.35);
 }
@@ -913,6 +926,113 @@ const endPtr = (e) => {
 };
 canvas.addEventListener("pointerup", endPtr);
 canvas.addEventListener("pointercancel", endPtr);
+
+// ---------- input: giroscopio ----------
+// Il telefono è una finestra sul luogo: beccheggio e rollio seguono la gravità, 1 a 1, mentre l'imbardata parte
+// da dove stavi guardando. Il trascinamento continua a girarti (utile da seduti) e corregge l'altezza dello sguardo.
+// Dove c'è la Generic Sensor API si legge direttamente il quaternione, altrimenti deviceorientation (iPhone).
+const GYRO_PITCH = 1.5;
+const gyro = { on: false, live: false, t: 0, raw: new THREE.Quaternion(), sm: new THREE.Quaternion(), dev: 0,
+  yawOff: 0, pitchOff: 0, align: true, snap: true, since: 0, sensor: null, lock: null, timer: 0, asking: false };
+const DEG = Math.PI / 180, ZAX = new THREE.Vector3(0, 0, 1);
+const ZUP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2); // terra con Z in su -> Y in su
+const gIn = new THREE.Euler(), gOut = new THREE.Euler(), gQ = new THREE.Quaternion(), gS = new THREE.Quaternion();
+const screenAngle = () => ((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * DEG;
+function onOrient(e) {
+  if (e.alpha == null || e.beta == null || e.gamma == null) return;
+  // W3C: R = Rz(alpha)·Rx(beta)·Ry(gamma), dal telefono alla terra; poi si compensa la rotazione dello schermo
+  gIn.set(e.beta * DEG, e.gamma * DEG, e.alpha * DEG, "ZXY");
+  gyro.raw.setFromEuler(gIn).premultiply(ZUP).multiply(gS.setFromAxisAngle(ZAX, -screenAngle()));
+  gyro.t = performance.now();
+}
+function startSensor() {
+  if (!("RelativeOrientationSensor" in window)) return false;
+  try {
+    const s = new RelativeOrientationSensor({ frequency: 60, referenceFrame: "screen" });
+    s.addEventListener("reading", () => {
+      if (gyro.sensor !== s || !s.quaternion) return;
+      gyro.raw.fromArray(s.quaternion).premultiply(ZUP); gyro.t = performance.now();
+    });
+    s.addEventListener("error", () => {
+      if (gyro.sensor !== s) return;
+      s.stop(); gyro.sensor = null; gyro.align = true;
+      if (gyro.on) window.addEventListener("deviceorientation", onOrient);
+    });
+    s.start(); gyro.sensor = s;
+    return true;
+  } catch (_) { return false; }
+}
+// tiene acceso lo schermo: col giroscopio si può guardare a lungo senza toccarlo
+function wake(on) {
+  if (!navigator.wakeLock) return;
+  if (!on) { if (gyro.lock) gyro.lock.release().catch(() => {}); gyro.lock = null; return; }
+  if (gyro.lock && !gyro.lock.released) return;
+  navigator.wakeLock.request("screen").then((l) => { if (gyro.on) gyro.lock = l; else l.release(); }).catch(() => {});
+}
+let noteT = 0;
+function note(msg, ms = 4200) {
+  const n = $("note"); n.textContent = msg; n.hidden = false;
+  clearTimeout(noteT); noteT = setTimeout(() => { n.hidden = true; }, ms);
+}
+function gyroSet(on) {
+  $("bGyro").setAttribute("aria-pressed", String(on));
+  try { localStorage.setItem("faraona.gyro", on ? "1" : "0"); } catch (_) {}
+}
+// va chiamata dentro un tocco: su iPhone il permesso si chiede solo lì
+function gyroStart() {
+  if (gyro.on || gyro.asking) return;
+  const DOE = window.DeviceOrientationEvent;
+  const ask = DOE && typeof DOE.requestPermission === "function" ? DOE.requestPermission() : Promise.resolve("granted");
+  gyro.asking = true;
+  ask.catch(() => "denied").then((res) => {
+    gyro.asking = false;
+    // Safari risponde granted o denied; Chrome recente può rispondere anche prompt, e lì conviene provare comunque
+    if (res === "denied") { gyroSet(false); note("Senza il permesso a Movimento e orientamento il giroscopio non parte. Lo trovi nelle impostazioni del browser."); return; }
+    Object.assign(gyro, { on: true, live: false, t: 0, align: true, snap: false, pitchOff: 0 });
+    gyro.sm.setFromEuler(gOut.set(player.pitch, player.yaw, player.roll, "YZX"));
+    if (!startSensor()) window.addEventListener("deviceorientation", onOrient);
+    gyroSet(true); wake(true);
+    clearTimeout(gyro.timer);
+    gyro.timer = setTimeout(() => {
+      if (gyro.on && !gyro.t) { gyroStop(); note("Da questo dispositivo non arrivano dati di orientamento."); }
+    }, 2500);
+  });
+}
+function gyroStop() {
+  gyro.on = gyro.live = false;
+  if (gyro.sensor) { gyro.sensor.stop(); gyro.sensor = null; }
+  window.removeEventListener("deviceorientation", onOrient);
+  clearTimeout(gyro.timer); wake(false); gyroSet(false);
+}
+// ogni fotogramma: dall'orientamento del telefono a imbardata, beccheggio e rollio dello sguardo
+function gyroUpdate(dt) {
+  if (!gyro.on || !gyro.t) return false;
+  const now = performance.now();
+  if (!gyro.live) { gyro.live = true; gyro.since = now; note("Muovi il telefono per guardarti intorno. Trascina per girarti."); }
+  gOut.setFromQuaternion(gyro.raw, "YZX");
+  const dp = gOut.x, dy = gOut.y, dr = gOut.z;
+  if (gyro.align) { gyro.yawOff = player.yaw - dy; gyro.align = false; }
+  gyro.dev = dp;
+  gQ.setFromEuler(gOut.set(THREE.MathUtils.clamp(dp + gyro.pitchOff, -GYRO_PITCH, GYRO_PITCH), dy + gyro.yawOff, dr, "YZX"));
+  if (gyro.snap) { gyro.sm.copy(gQ); gyro.snap = false; }
+  else {
+    // filtro adattivo: fermo toglie il tremolio, in movimento segue quasi senza ritardo; all'inizio scivola dolce
+    const k = now - gyro.since < 700 ? 5 : 22 + 70 * Math.min(gyro.sm.angleTo(gQ) / 0.06, 1);
+    gyro.sm.slerp(gQ, 1 - Math.exp(-dt * k));
+  }
+  gOut.setFromQuaternion(gyro.sm, "YZX");
+  player.pitch = gOut.x; player.yaw = gOut.y; player.roll = gOut.z;
+  return true;
+}
+$("bGyro").hidden = !(window.matchMedia("(pointer: coarse)").matches &&
+  ("DeviceOrientationEvent" in window || "RelativeOrientationSensor" in window));
+document.querySelectorAll(".gyro-hint").forEach((el) => { el.hidden = $("bGyro").hidden; });
+$("bGyro").addEventListener("click", () => (gyro.on ? gyroStop() : gyroStart()));
+document.addEventListener("visibilitychange", () => {
+  // al ritorno il riferimento dei sensori può essere ripartito: si riallinea senza scatti
+  if (document.hidden || !gyro.on) return;
+  gyro.align = gyro.snap = true; wake(true);
+});
 
 // ---------- pulsanti ----------
 let ashLevel = 1;
@@ -979,6 +1099,7 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   U.uTime.value += dt;
   if (W) {
+    if (!gyroUpdate(dt)) player.roll *= Math.exp(-dt * 6);
     // intenzione di movimento
     let mf = 0, ms = 0;
     if (keys.has("KeyW") || keys.has("ArrowUp")) mf += 1;
@@ -1007,7 +1128,7 @@ function frame() {
     const speed = Math.hypot(player.vx, player.vz);
     player.bob += speed * dt * 5.2;
     camera.position.set(player.x, EYE + Math.sin(player.bob) * 0.025 * Math.min(speed, 1.5), player.z);
-    camera.rotation.set(player.pitch, player.yaw, 0);
+    camera.rotation.set(player.pitch, player.yaw, player.roll);
     camera.updateMatrixWorld();
     // la cenere si accumula col tempo
     U.uAsh.value = Math.min(0.75, U.uAsh.value + dt * 0.004 * (ashLevel + 1));
@@ -1116,6 +1237,9 @@ $("enter").addEventListener("click", () => {
   if (window.matchMedia("(pointer: fine)").matches && canvas.requestPointerLock) {
     try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
   }
+  // se l'ultima volta era acceso lo si riaccende ora, dentro il tocco su Entra
+  let g = null; try { g = localStorage.getItem("faraona.gyro"); } catch (_) {}
+  if (g === "1" && !$("bGyro").hidden) gyroStart();
 });
-window.__faraona = { player, goTo, U };
+window.__faraona = { player, goTo, U, gyro };
 </script>
