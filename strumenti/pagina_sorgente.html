@@ -121,7 +121,7 @@ body {
     <div class="readout" id="readout"></div>
   </div>
 </div>
-<div class="ptag" id="ptag" hidden></div>
+<div id="tags"></div>
 <button class="btn read" id="bRead" type="button" hidden>Leggi il foglio <span class="desk">· E</span></button>
 <div class="docview" id="docView" hidden role="dialog" aria-label="Il foglio trovato nella cappella">
   <figure>
@@ -137,7 +137,7 @@ body {
   <div class="card">
     <span class="kicker">Trashcoli · urbex · abbandonato</span>
     <h1>Dentro Faraona</h1>
-    <p>Nove luoghi ricostruiti dalle fotografie, cinque fuori e quattro dentro. Dove l'obiettivo non ha visto, il mondo finisce nella nebbia. Entra nella colonna di brace per passare al luogo successivo. Piove cenere.</p>
+    <p>Nove luoghi ricostruiti dalle fotografie, cinque fuori e quattro dentro, affacciati su un unico corridoio. Ogni porta si apre su una foto: entra, guardati intorno, poi torna nel corridoio e prosegui. Le porte di brace in fondo ti riportano dall'altra parte. Piove cenere.</p>
     <div class="keys desk">
       <kbd>Clic</kbd><span>cattura il mouse per guardarti intorno</span>
       <kbd>W A S D</kbd><span>cammina · <kbd>Shift</kbd> corri</span>
@@ -162,6 +162,12 @@ import * as THREE from "three";
 const $ = (id) => document.getElementById(id);
 const canvas = $("scene");
 const EYE = 1.6, RADIUS = 0.22;
+// il corridoio che unisce le foto (metri): mezza larghezza, altezza, spessore dei muri, porte
+const HW = 1.3, CH = 3.2, WALL = 0.24, DOOR_W = 1.3, DOOR_H = 2.35;
+// la soglia tra fuori e dentro: un muro di traverso con un varco
+const TW = 1.7, TH = 2.6;
+// ogni foto è una stanza: il punto di ripresa sta BACK metri oltre la porta
+const BACK = 1.1, STEP = 5.4, THRESH_GAP = 3.5, END_GAP = 4.2;
 const ASH_LEVELS = [
   { name: "leggera", n: 3500, speed: 0.55 },
   { name: "fitta", n: 9000, speed: 0.75 },
@@ -175,8 +181,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const FOG = new THREE.Color(0x342e29);
 renderer.setClearColor(FOG);
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(FOG, 0.075);
-const camera = new THREE.PerspectiveCamera(63, 1, 0.05, 80);
+scene.fog = new THREE.FogExp2(FOG, 0.06);
+const camera = new THREE.PerspectiveCamera(63, 1, 0.05, 140);
 camera.rotation.order = "YXZ";
 scene.add(camera);
 
@@ -184,6 +190,14 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  fitFov();
+}
+// campo visivo: in orizzontale una foto tipica riempie la larghezza; in verticale (telefono) un compromesso
+function fitFov() {
+  const t = Math.tan(THREE.MathUtils.degToRad(48) / 2);
+  const fillW = 2 * Math.atan(t / camera.aspect), fillH = 2 * Math.atan(t * 1.5);
+  const v = camera.aspect >= 1 ? fillW : Math.sqrt(fillW * fillH);
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(v), 45, 80);
   camera.updateProjectionMatrix();
 }
 window.addEventListener("resize", resize);
@@ -197,11 +211,34 @@ const U = {
   uCamPos: { value: new THREE.Vector3() },
   uCamDir: { value: new THREE.Vector3(0, 0, -1) },
   uFogColor: { value: FOG },
-  uFogDensity: { value: 0.075 },
+  uFogDensity: { value: 0.06 },
 };
 
-// ---------- materiale della stanza: foto + cenere posata + nebbia + torcia ----------
-const roomMat = (tex) => new THREE.ShaderMaterial({
+const NOISE = /* glsl */`
+  float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+    return mix(mix(h2(i),h2(i+vec2(1,0)),f.x), mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x), f.y); }
+  float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<5;i++){ s+=a*n2(p); p=p*2.03+17.1; a*=0.5; } return s; }`;
+const SHADE = /* glsl */`
+  uniform float uAsh, uTorch, uTime, uFogDensity; uniform vec3 uCamPos, uCamDir, uFogColor;
+  // torcia (abbassa l'ambiente e illumina un cono) e nebbia esponenziale
+  vec3 shade(vec3 col, vec3 w, float fogK) {
+    vec3 L = w - uCamPos; float d = length(L); L /= d;
+    float fall = 1.0 / (1.0 + 0.09 * d * d);
+    col *= mix(1.0, 0.28 + 1.35 * smoothstep(0.86, 0.975, dot(L, uCamDir)) * fall + 0.12 * fall, uTorch);
+    float fogF = (1.0 - exp(-uFogDensity * uFogDensity * d * d)) * fogK;
+    return mix(col, uFogColor * mix(1.0, 0.35, uTorch), fogF);
+  }
+  // cenere che si deposita sulle superfici rivolte verso l'alto
+  vec3 ashCover(vec3 col, vec3 w, float ny, float k) {
+    float up = smoothstep(0.55, 0.95, ny);
+    float grain = n2(w.xz * 9.0) * 0.6 + n2(w.xz * 31.0) * 0.4;
+    float cover = clamp(up * uAsh * (0.55 + grain), 0.0, 0.85) * k;
+    return mix(col, vec3(0.34, 0.33, 0.31) * (0.75 + 0.35 * grain), cover);
+  }`;
+
+// ---------- la foto in rilievo ----------
+const reliefMat = (tex) => new THREE.ShaderMaterial({
   uniforms: { ...U, uMap: { value: tex } },
   vertexShader: /* glsl */`
     attribute float sky;
@@ -212,89 +249,201 @@ const roomMat = (tex) => new THREE.ShaderMaterial({
       vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
       gl_Position = projectionMatrix * viewMatrix * w;
     }`,
-  fragmentShader: /* glsl */`
-    uniform sampler2D uMap; uniform float uAsh, uTorch, uTime, uFogDensity;
-    uniform vec3 uCamPos, uCamDir, uFogColor;
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    uniform sampler2D uMap;
     varying vec2 vUv; varying vec3 vW; varying vec3 vN; varying float vSky;
-    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-    float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-      return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
     void main() {
-      vec3 col = texture2D(uMap, vUv).rgb;
-      // cenere che si deposita sulle superfici rivolte verso l'alto
-      float up = smoothstep(0.55, 0.95, vN.y);
-      float grain = n2(vW.xz * 9.0) * 0.6 + n2(vW.xz * 31.0) * 0.4;
-      float cover = clamp(up * uAsh * (0.55 + grain), 0.0, 0.85) * (1.0 - vSky);
-      vec3 ashCol = vec3(0.34, 0.33, 0.31) * (0.75 + 0.35 * grain);
-      col = mix(col, ashCol, cover);
-      // torcia: abbassa l'ambiente e illumina un cono
-      vec3 L = vW - uCamPos; float d = length(L); L /= d;
-      float cone = smoothstep(0.86, 0.975, dot(L, uCamDir));
-      float fall = 1.0 / (1.0 + 0.09 * d * d);
-      float lit = mix(1.0, 0.28 + 1.35 * cone * fall + 0.12 * fall, uTorch);
-      col *= lit;
-      // nebbia esponenziale + bordi della foto che sfumano nel nulla
-      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
-      float e = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));
-      fogF = mix(fogF, 0.25 * fogF, vSky);             // il cielo resta visibile oltre la nebbia
-      fogF = max(fogF, 1.0 - smoothstep(0.0, 0.045, e));
-      gl_FragColor = vec4(mix(col, uFogColor * mix(1.0, 0.35, uTorch), fogF), 1.0);
+      vec3 col = ashCover(texture2D(uMap, vUv).rgb, vW, vN.y, 1.0 - vSky);
+      gl_FragColor = vec4(shade(col, vW, mix(1.0, 0.25, vSky)), 1.0);   // il cielo resta visibile oltre la nebbia
       #include <colorspace_fragment>
     }`,
 });
 
-// ---------- fuori dalla foto: una distesa di cenere e una cappa di foschia ----------
-const NOISE = /* glsl */`
-  float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-    return mix(mix(h2(i),h2(i+vec2(1,0)),f.x), mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x), f.y); }
-  float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<5;i++){ s+=a*n2(p); p=p*2.03+17.1; a*=0.5; } return s; }`;
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(140, 140).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+// ---------- le pareti della stanza: la foto proiettata dal punto di ripresa ----------
+// Dentro l'inquadratura la proiezione è esatta, quindi dal punto di ripresa i buchi del rilievo non si vedono.
+// Appena fuori i bordi della foto si allungano; più in là la foto, molto sfocata, avvolge la stanza
+// tenendo il suo cielo in alto e il suo pavimento in basso, e intanto si spegne in un muro scuro.
+const shellMat = (r) => new THREE.ShaderMaterial({
+  uniforms: { ...U, uMap: { value: r.tex }, uSkyMap: { value: r.skyTex }, uM: { value: r.M }, uT: { value: r.T },
+    uBMin: { value: r.box.min }, uBMax: { value: r.box.max }, uPitch: { value: r.pitch } },
+  vertexShader: /* glsl */`
+    varying vec3 vP; varying vec3 vW; varying vec3 vNo;
+    void main() {
+      vP = position; vNo = normal;
+      vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz;
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    uniform sampler2D uMap, uSkyMap; uniform mat3 uM; uniform vec2 uT; uniform vec3 uBMin, uBMax; uniform float uPitch;
+    varying vec3 vP; varying vec3 vW; varying vec3 vNo;
+    void main() {
+      vec3 d = vP - vec3(0.0, ${EYE.toFixed(2)}, 0.0);
+      vec3 c = uM * d;                                             // direzione nello spazio della macchina
+      float a = atan(c.x, -c.z), b = atan(c.y, length(c.xz));
+      float aH = atan(uT.x), ac = clamp(a, -aH, aH), bE = atan(uT.y * cos(ac)), bc = clamp(b, -bE, bE);
+      float o = length(vec2(abs(a) - abs(ac), abs(b) - abs(bc)));  // quanto si è fuori dall'inquadratura (radianti)
+      vec2 uv = clamp(vec2(0.5 + tan(ac) / (2.0 * uT.x), 0.5 + tan(bc) / (2.0 * uT.y * cos(ac))), 0.001, 0.999);
+      float blur = min(o * 16.0, 7.5);
+      #if __VERSION__ >= 300
+        // sfocatura uguale in tutte le direzioni (il filtro anisotropo lascerebbe righe nette)
+        vec2 gx = dFdx(uv) * vec2(textureSize(uMap, 0)), gy = dFdy(uv) * vec2(textureSize(uMap, 0));
+        vec3 col = textureLod(uMap, uv, max(0.5 * log2(max(max(dot(gx, gx), dot(gy, gy)), 1e-8)), blur)).rgb;
+      #else
+        vec3 col = texture2D(uMap, uv, blur).rgb;
+      #endif
+      float sky = texture2D(uSkyMap, vec2(uv.x, 1.0 - uv.y), blur * 0.6).r;
+      float far = smoothstep(0.08, 0.45, o);
+      if (far > 0.0) {
+        vec3 n = normalize(d);
+        float A = atan(n.x, -n.z), E = asin(clamp(n.y, -1.0, 1.0));
+        vec2 uf = vec2(0.5 + 0.42 * sin(A) * cos(E), clamp(0.5 + 0.46 * (E - uPitch) / 1.5708, 0.04, 0.96));
+        #if __VERSION__ >= 300
+          col = mix(col, textureLod(uMap, uf, 8.0).rgb, far);
+        #else
+          col = mix(col, texture2D(uMap, uf, 8.0).rgb, far);
+        #endif
+        sky = mix(sky, texture2D(uSkyMap, vec2(uf.x, 1.0 - uf.y), 5.0).r, far);
+      }
+      // lontano dalla foto diventa muro: macchie, umidità dal basso, angoli in ombra
+      vec3 N = vNo;
+      vec2 q = abs(N.y) > 0.5 ? vP.xz : (abs(N.x) > 0.5 ? vP.zy : vP.xy);
+      float st = fbm(q * 0.9);
+      float damp = smoothstep(0.5, 0.75, fbm(q * 0.33 + 7.0)) * (1.0 - smoothstep(0.0, 2.2, vP.y));
+      vec3 de = min(vP - uBMin, uBMax - vP) + abs(N) * 100.0;
+      float edge = smoothstep(0.0, 1.0, min(min(de.x, de.y), de.z));
+      float wall = (0.78 + 0.34 * st) * (1.0 - 0.4 * damp) * (0.45 + 0.55 * edge) * mix(1.0, 0.38, smoothstep(0.3, 2.2, o));
+      col = mix(col, vec3(dot(col, vec3(0.3, 0.55, 0.15))) * vec3(1.0, 0.93, 0.84), 0.75 * smoothstep(0.5, 2.2, o));   // e si spegne
+      col *= mix(1.0, wall, smoothstep(0.0, 0.4, o));
+      col = ashCover(col, vW, N.y, 1.0 - sky);
+      gl_FragColor = vec4(shade(col, vW, mix(1.0, 0.25, sky)), 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// ---------- il corridoio: intonaco, cementine, luce che esce dalle porte ----------
+const NL = 12;
+const LIGHTS = { uLP: { value: [] }, uLC: { value: [] }, uLD: { value: [] }, uSplit: { value: 0 } };
+for (let i = 0; i < NL; i++) {
+  LIGHTS.uLP.value.push(new THREE.Vector3(0, -100, 0));
+  LIGHTS.uLC.value.push(new THREE.Vector3());
+  LIGHTS.uLD.value.push(new THREE.Vector3(0, 0, 1));
+}
+const hallMat = new THREE.ShaderMaterial({
+  uniforms: { ...U, ...LIGHTS },
+  vertexShader: /* glsl */`
+    varying vec3 vW; varying vec3 vN;
+    void main() { vN = normal; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    #define NL ${NL}
+    uniform vec3 uLP[NL]; uniform vec3 uLC[NL]; uniform vec3 uLD[NL]; uniform float uSplit;
+    varying vec3 vW; varying vec3 vN;
+    vec3 lin(vec3 c) { return c * c; }
+    // tassellatura esagonale: xy = posizione nella cella, zw = id della cella
+    vec4 hex(vec2 p) {
+      const vec2 s = vec2(1.0, 1.7320508);
+      vec4 hc = floor(vec4(p, p - vec2(0.5, 1.0)) / s.xyxy) + 0.5;
+      vec4 h = vec4(p - hc.xy * s, p - (hc.zw + 0.5) * s);
+      return dot(h.xy, h.xy) < dot(h.zw, h.zw) ? vec4(h.xy, hc.xy) : vec4(h.zw, hc.zw + 0.5);
+    }
+    float hexEdge(vec2 p) { p = abs(p); return 0.5 - max(dot(p, vec2(0.5, 0.8660254)), p.x); }
+    void main() {
+      vec3 N = normalize(vN);
+      float dentro = smoothstep(uSplit - 0.3, uSplit + 0.3, vW.x);
+      vec3 alb;
+      vec3 inA = vec3(0.0), outA = vec3(0.0);
+      if (N.y > 0.5) {
+        if (dentro > 0.0) {
+          // dentro: cementine esagonali consumate
+          vec4 hx = hex(vW.xz / 0.21);
+          float e = hexEdge(hx.xy), rnd = h2(hx.zw);
+          vec3 tile = mix(lin(vec3(0.56, 0.51, 0.44)), lin(vec3(0.38, 0.35, 0.31)), step(0.5, rnd));
+          tile *= 0.86 + 0.14 * smoothstep(0.1, 0.14, abs(e - 0.22));
+          tile = mix(tile, lin(vec3(0.2, 0.18, 0.16)), step(0.92, h2(hx.zw + 3.1)));
+          inA = mix(lin(vec3(0.12, 0.11, 0.1)), tile, smoothstep(0.015, 0.035, e)) * (0.7 + 0.45 * fbm(vW.xz * 1.3));
+        }
+        if (dentro < 1.0) {
+          // fuori: terra battuta, pietre, foglie
+          vec4 hc = hex(vW.xz / 0.36 + vec2(n2(vW.xz * 2.0), n2(vW.zx * 2.0 + 5.0)) * 0.35);
+          outA = mix(lin(vec3(0.24, 0.21, 0.17)), lin(vec3(0.36, 0.33, 0.27)), fbm(vW.xz * 1.7));
+          outA = mix(outA, lin(vec3(0.42, 0.41, 0.38)) * (0.75 + 0.5 * h2(hc.zw)), smoothstep(0.04, 0.09, hexEdge(hc.xy)) * step(0.35, h2(hc.zw + 7.0)));
+          outA = mix(outA, lin(vec3(0.2, 0.24, 0.12)), 0.8 * smoothstep(0.62, 0.8, fbm(vW.xz * 3.0 + 11.0)) * smoothstep(0.4, 1.25, abs(vW.z)));
+        }
+        alb = mix(outA, inA, dentro);
+      } else if (N.y < -0.5) {
+        vec3 c = mix(lin(vec3(0.4, 0.38, 0.35)), lin(vec3(0.22, 0.2, 0.18)), fbm(vW.xz * 0.6));
+        float beam = smoothstep(0.78, 0.8, fract(vW.x / 1.1)) * (1.0 - dentro);   // fuori: travi di legno
+        alb = mix(c, lin(vec3(0.2, 0.15, 0.11)) * (0.7 + 0.5 * n2(vW.xz * vec2(0.6, 9.0))), beam);
+      } else {
+        vec2 q = abs(N.x) > 0.5 ? vW.zy : vW.xy;
+        float y = vW.y;
+        float damp = smoothstep(0.35, 0.75, fbm(vec2(q.x * 1.5, q.y * 0.5) + 5.0) + 0.6 - y * 0.45);
+        if (dentro > 0.0) {
+          // dentro: pittura color ocra sopra uno zoccolo scuro, che si stacca a chiazze
+          vec3 paint = mix(lin(vec3(0.66, 0.58, 0.43)), lin(vec3(0.55, 0.52, 0.47)), n2(q * 0.7 + 3.0));
+          inA = mix(lin(vec3(0.4, 0.33, 0.25)), paint, smoothstep(1.17, 1.19, y));
+          inA *= 1.0 - 0.6 * smoothstep(1.17, 1.18, y) * (1.0 - smoothstep(1.2, 1.21, y));
+          inA = mix(inA, lin(vec3(0.72, 0.7, 0.66)) * (0.8 + 0.3 * n2(q * 4.0)), smoothstep(0.58, 0.6, fbm(q * 0.8 + 21.0)));
+        }
+        if (dentro < 1.0) {
+          // fuori: pietra a corsi irregolari, muschio in basso
+          vec2 bq = q / vec2(0.6, 0.3); bq.x += step(1.0, mod(floor(bq.y), 2.0)) * 0.5;
+          vec2 bf = fract(bq);
+          outA = mix(lin(vec3(0.4, 0.4, 0.36)), lin(vec3(0.3, 0.31, 0.27)), fbm(q * 1.4));
+          outA *= 0.7 + 0.3 * smoothstep(0.0, 0.07, min(min(bf.x, 1.0 - bf.x) * 0.5, min(bf.y, 1.0 - bf.y)));
+          outA = mix(outA, lin(vec3(0.17, 0.22, 0.1)), 0.85 * smoothstep(0.5, 0.7, fbm(q * 0.9 + 9.0) + 0.5 - y * 0.35));
+        }
+        alb = mix(outA, inA, dentro) * (1.0 - 0.45 * damp);
+      }
+      // poca luce di fondo, il resto arriva dalle stanze aperte
+      vec3 light = vec3(0.12, 0.11, 0.1);
+      for (int i = 0; i < NL; i++) {
+        vec3 L = uLP[i] - vW; float d2 = dot(L, L); L *= inversesqrt(d2);
+        float lam = max(dot(N, L), 0.0) * 0.75 + 0.25;
+        float side = smoothstep(-0.05, 0.3, dot(-L, uLD[i]));
+        light += uLC[i] * lam * side / (1.0 + 0.55 * d2);
+      }
+      vec3 col = ashCover(alb * light, vW, N.y, 1.0);
+      gl_FragColor = vec4(shade(col, vW, 1.0), 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// le porte in fondo al corridoio: una cortina di brace
+const emberMat = new THREE.ShaderMaterial({
   uniforms: U,
   vertexShader: /* glsl */`
-    varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: NOISE + /* glsl */`
-    uniform float uAsh, uTorch, uTime, uFogDensity; uniform vec3 uCamPos, uCamDir, uFogColor; varying vec3 vW;
+    varying vec2 vUv; varying vec3 vW;
+    void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    varying vec2 vUv; varying vec3 vW;
     void main(){
-      vec2 p = vW.xz;
-      float dune = fbm(p * 0.35 + vec2(uTime * 0.01, 0.0));
-      float dist = length(vW.xz - uCamPos.xz);
-      float fine = mix(fbm(p * 6.0), 0.5, smoothstep(4.0, 14.0, dist));
-      vec3 col = mix(vec3(0.016, 0.014, 0.012), vec3(0.075, 0.068, 0.06), dune * 0.7 + fine * 0.3);
-      col = mix(col, vec3(0.16, 0.155, 0.145), clamp(uAsh * 0.6 * fine, 0.0, 0.45));
-      float spark = step(0.995, h2(floor(p * 40.0))) * (0.5 + 0.5 * sin(uTime * 3.0 + h2(floor(p * 40.0)) * 40.0));
-      col += vec3(1.0, 0.4, 0.12) * spark * 0.35;      // qualche brace ancora accesa
-      vec3 L = vW - uCamPos; float d = length(L); L /= d;
-      col *= mix(1.0, 0.25 + 1.3 * smoothstep(0.86, 0.975, dot(L, uCamDir)) / (1.0 + 0.09 * d * d), uTorch);
-      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d * 1.4);
-      gl_FragColor = vec4(mix(col, uFogColor * mix(1.0, 0.35, uTorch), fogF), 1.0);
+      float y = vUv.y;
+      float band = 0.5 + 0.5 * sin(vUv.x * 23.0 + uTime * 1.3) * sin(y * 9.0 - uTime * 2.1);
+      float glow = pow(1.0 - y, 1.3) * (0.45 + 0.4 * band) * (0.8 + 0.4 * fbm(vec2(vUv.x * 4.0, y * 3.0 - uTime * 0.6)));
+      vec3 col = vec3(1.0, 0.42, 0.15) * (glow * 1.7 + 0.05) + vec3(0.02, 0.016, 0.014);
+      gl_FragColor = vec4(shade(col, vW, 0.45), 1.0);
       #include <colorspace_fragment>
     }`,
-}));
-ground.position.y = -0.06;
-ground.renderOrder = -1;
-scene.add(ground);
+});
 
-const dome = new THREE.Mesh(new THREE.SphereGeometry(70, 32, 16), new THREE.ShaderMaterial({
-  uniforms: U, side: THREE.BackSide, depthWrite: false,
+const docMat = (tex) => new THREE.ShaderMaterial({
+  uniforms: { ...U, uMap: { value: tex } }, transparent: true, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
   vertexShader: /* glsl */`
-    varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: NOISE + /* glsl */`
-    uniform float uTime, uTorch; uniform vec3 uFogColor; varying vec3 vD;
+    varying vec2 vUv; varying vec3 vW;
+    void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    uniform sampler2D uMap;
+    varying vec2 vUv; varying vec3 vW;
     void main(){
-      float y = vD.y;
-      vec2 q = vD.xz / (abs(y) + 0.35) * 2.0;
-      float haze = fbm(q + vec2(uTime * 0.03, uTime * 0.012));
-      vec3 top = uFogColor * 0.45;
-      vec3 col = mix(uFogColor, top, smoothstep(0.0, 0.85, y));
-      col *= 0.92 + 0.16 * haze;
-      col += vec3(0.30, 0.10, 0.02) * pow(1.0 - abs(y), 10.0) * 0.12;   // bagliore basso, come un incendio lontano
-      gl_FragColor = vec4(col * mix(1.0, 0.35, uTorch), 1.0);
+      vec3 col = texture2D(uMap, vUv).rgb;
+      float r = length((vUv - 0.5) * vec2(1.25, 1.0)) * 2.0;
+      float a = 1.0 - smoothstep(0.62, 0.98, r);          // il foglio si fonde con le macerie
+      col = mix(col, vec3(0.6, 0.58, 0.55), clamp(uAsh * 0.6, 0.0, 0.6));
+      gl_FragColor = vec4(shade(col, vW, 1.0), a);
       #include <colorspace_fragment>
     }`,
-}));
-dome.renderOrder = -2;
-scene.add(dome);
+});
 
 // ---------- cenere che cade ----------
 let ash = null;
@@ -360,9 +509,50 @@ function buildAsh(level) {
   scene.add(ash);
 }
 
+// ---------- geometria a rettangoli ----------
+// ogni rettangolo: quattro angoli in giro e la normale verso chi guarda
+function quadsGeo(list) {
+  const pos = [], nrm = [], uv = [], idx = [];
+  for (const [a, b, c, d, n] of list) {
+    const i = pos.length / 3;
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const flip = (uy * vz - uz * vy) * n[0] + (uz * vx - ux * vz) * n[1] + (ux * vy - uy * vx) * n[2] < 0;
+    pos.push(...a, ...b, ...c, ...d);
+    for (let k = 0; k < 4; k++) nrm.push(...n);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    if (flip) idx.push(i, i + 2, i + 1, i, i + 3, i + 2); else idx.push(i, i + 1, i + 2, i, i + 2, i + 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g;
+}
+// rettangoli allineati agli assi; quelli vuoti si scartano
+const rx = (L, x, y0, y1, z0, z1, s) => { if (y1 > y0 + 1e-4 && z1 > z0 + 1e-4) L.push([[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0], [s, 0, 0]]); };
+const ry = (L, y, x0, x1, z0, z1, s) => { if (x1 > x0 + 1e-4 && z1 > z0 + 1e-4) L.push([[x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1], [0, s, 0]]); };
+const rz = (L, z, x0, x1, y0, y1, s) => { if (x1 > x0 + 1e-4 && y1 > y0 + 1e-4) L.push([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z], [0, 0, s]]); };
+// muro parallelo all'asse x (z costante) con aperture [x0, x1, altezza] che partono da terra
+function wallZ(L, z, x0, x1, top, holes, s) {
+  let cur = x0;
+  for (const [a, b, hh] of [...holes].sort((p, q) => p[0] - q[0])) {
+    rz(L, z, cur, a, 0, top, s); rz(L, z, a, b, hh, top, s); cur = b;
+  }
+  rz(L, z, cur, x1, 0, top, s);
+}
+function wallX(L, x, z0, z1, top, holes, s) {
+  let cur = z0;
+  for (const [a, b, hh] of [...holes].sort((p, q) => p[0] - q[0])) {
+    rx(L, x, 0, top, cur, a, s); rx(L, x, hh, top, a, b, s); cur = b;
+  }
+  rx(L, x, 0, top, cur, z1, s);
+}
+
 // ---------- caricamento stanze ----------
-let world = null, current = null, room = null, arrivedAt = 0;
+let world = null, rooms = [], W = null;
 const texLoader = new THREE.TextureLoader();
+const rot = (x, z, a) => [x * Math.cos(a) + z * Math.sin(a), -x * Math.sin(a) + z * Math.cos(a)];
 
 async function loadDepth(url) {
   const blob = await (await fetch(url)).blob();
@@ -382,38 +572,74 @@ function decodeGrid(g) {
   for (let i = 0; i < n; i++) cells[i] = (bin.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1;
   return { ...g, cells };
 }
+function cellWalk(g, x, z) {
+  const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
+  return i >= 0 && j >= 0 && i < g.w && j < g.h && g.cells[j * g.w + i] === 1;
+}
+const pct = (arr, q) => { const s = Float32Array.from(arr).sort(); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 
-function buildRoomMesh(sc, D, tex) {
+// Coordinate della stanza: punto di ripresa in (0, EYE, 0), la foto guarda verso -z, la porta è dietro, a z = BACK.
+function buildRoom(sc, D, tex) {
   const { w, h, z } = D;
-  const fx = (w / 2) / Math.tan(THREE.MathUtils.degToRad(sc.hfov) / 2);
+  const tH = Math.tan(THREE.MathUtils.degToRad(sc.hfov) / 2), fx = (w / 2) / tH;
   const cx = w / 2, cy = h / 2;
   const R = sc.R;   // matrice 3x3 (righe)
+  const fwd = [-R[0][2], -R[2][2]];
+  const beta = Math.hypot(fwd[0], fwd[1]) < 1e-3 ? 0 : Math.atan2(fwd[0], -fwd[1]);
   const pos = new Float32Array(w * h * 3), uv = new Float32Array(w * h * 2);
+  const sx = [], sy = [], sz = [];
   for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
     const i = v * w + u, d = z[i];
     const X = (u + 0.5 - cx) / fx * d, Y = -(v + 0.5 - cy) / fx * d, Z = -d;
-    pos[i * 3] = R[0][0] * X + R[0][1] * Y + R[0][2] * Z;
-    pos[i * 3 + 1] = R[1][0] * X + R[1][1] * Y + R[1][2] * Z + sc.yoff;
-    pos[i * 3 + 2] = R[2][0] * X + R[2][1] * Y + R[2][2] * Z;
+    const [px, pz] = rot(R[0][0] * X + R[0][1] * Y + R[0][2] * Z, R[2][0] * X + R[2][1] * Y + R[2][2] * Z, beta);
+    pos[i * 3] = px; pos[i * 3 + 1] = R[1][0] * X + R[1][1] * Y + R[1][2] * Z + sc.yoff; pos[i * 3 + 2] = pz;
     uv[i * 2] = (u + 0.5) / w; uv[i * 2 + 1] = 1 - (v + 0.5) / h;
+    if (!D.sky[i] && i % 5 === 0) { sx.push(px); sy.push(pos[i * 3 + 1]); sz.push(pz); }
   }
-  // triangoli: scarta quelli che attraversano un salto di profondità (eviterebbero "teli" stirati)
-  const idx = [];
-  const ok = (a, b, c) => {
-    const za = z[a], zb = z[b], zc = z[c];
-    const mx = Math.max(za, zb, zc), mn = Math.min(za, zb, zc);
-    return mx / mn < 1.09 + 0.006 * (h - Math.floor(a / w)) / h * 10;
+  const grid = decodeGrid(sc.grid);
+  let wx0 = 0, wx1 = 0, wz0 = 0;
+  for (let j = 0; j < grid.h; j++) for (let i = 0; i < grid.w; i++) if (grid.cells[j * grid.w + i]) {
+    const [gx, gz] = rot(grid.x0 + (i + 0.5) * grid.cell, grid.z0 + (j + 0.5) * grid.cell, beta);
+    wx0 = Math.min(wx0, gx); wx1 = Math.max(wx1, gx); wz0 = Math.min(wz0, gz);
+  }
+  // il guscio: abbastanza grande per la parte calpestabile e per quasi tutto il rilievo
+  const box = new THREE.Box3(
+    new THREE.Vector3(Math.min(wx0 - 0.7, pct(sx, 0.03) - 0.5, -DOOR_W / 2 - 0.8), 0,
+      Math.max(Math.min(wz0 - 1.0, pct(sz, 0.05) - 0.5), -16)),
+    new THREE.Vector3(Math.max(wx1 + 0.7, pct(sx, 0.97) + 0.5, DOOR_W / 2 + 0.8),
+      THREE.MathUtils.clamp(pct(sy, 0.97) + 0.3, CH + 0.2, 14), BACK));
+  // quello che sporge viene riportato sulle pareti lungo il raggio visivo: dal punto di ripresa non cambia nulla
+  const lo = [box.min.x + 0.03, -0.25, box.min.z + 0.03], hi = [box.max.x - 0.03, box.max.y - 0.03, BACK - 0.03];
+  const e = [0, EYE, 0];
+  for (let i = 0; i < w * h; i++) {
+    let t = 1;
+    for (let k = 0; k < 3; k++) {
+      const dv = pos[i * 3 + k] - e[k];
+      if (dv > 1e-6) t = Math.min(t, (hi[k] - e[k]) / dv); else if (dv < -1e-6) t = Math.min(t, (lo[k] - e[k]) / dv);
+    }
+    if (t < 1) for (let k = 0; k < 3; k++) pos[i * 3 + k] = e[k] + (pos[i * 3 + k] - e[k]) * t;
+  }
+  // triangoli: scarta quelli che attraversano un salto di profondità (eviterebbero "teli" stirati).
+  // Passo 1 per la stanza in cui sei, passo 2 (un quarto dei triangoli) per quelle viste dal corridoio.
+  const tris = (st) => {
+    const idx = [];
+    const ok = (a, b, c) => {
+      const za = z[a], zb = z[b], zc = z[c];
+      const mx = Math.max(za, zb, zc), mn = Math.min(za, zb, zc);
+      return mx / mn < 1 + st * (0.09 + 0.06 * (h - Math.floor(a / w)) / h);
+    };
+    for (let v = 0; v + st < h; v += st) for (let u = 0; u + st < w; u += st) {
+      const a = v * w + u, b = a + st, c = a + st * w, d = c + st;
+      if (ok(a, c, b)) idx.push(a, c, b);
+      if (ok(b, c, d)) idx.push(b, c, d);
+    }
+    return idx;
   };
-  for (let v = 0; v < h - 1; v++) for (let u = 0; u < w - 1; u++) {
-    const a = v * w + u, b = a + 1, c = a + w, d = c + 1;
-    if (ok(a, c, b)) idx.push(a, c, b);
-    if (ok(b, c, d)) idx.push(b, c, d);
-  }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   g.setAttribute("sky", new THREE.BufferAttribute(D.sky, 1));
-  g.setIndex(idx);
+  g.setIndex(tris(1));
   g.computeVertexNormals();
   // le normali calcolate guardano verso la camera originale; per la cenere serve l'orientamento vero
   const nrm = g.attributes.normal.array;
@@ -421,8 +647,41 @@ function buildRoomMesh(sc, D, tex) {
     const px = pos[i], py = pos[i + 1] - EYE, pz = pos[i + 2];
     if (nrm[i] * px + nrm[i + 1] * py + nrm[i + 2] * pz > 0) { nrm[i] *= -1; nrm[i + 1] *= -1; nrm[i + 2] *= -1; }
   }
-  const mesh = new THREE.Mesh(g, roomMat(tex));
-  return mesh;
+  const relief = new THREE.Mesh(g, reliefMat(tex));
+  const g2 = new THREE.BufferGeometry();
+  for (const k of ["position", "uv", "sky", "normal"]) g2.setAttribute(k, g.attributes[k]);
+  g2.setIndex(tris(2));
+  const reliefLo = new THREE.Mesh(g2, relief.material);
+
+  // dalla stanza alla macchina fotografica: prima si toglie la rotazione, poi R trasposta
+  const Rt = new THREE.Matrix3().set(R[0][0], R[1][0], R[2][0], R[0][1], R[1][1], R[2][1], R[0][2], R[1][2], R[2][2]);
+  const cb = Math.cos(-beta), sb = Math.sin(-beta);
+  const M = Rt.multiply(new THREE.Matrix3().set(cb, 0, sb, 0, 1, 0, -sb, 0, cb));
+  const skyData = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) skyData[i] = D.sky[i] ? 255 : 0;
+  const skyTex = new THREE.DataTexture(skyData, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  skyTex.magFilter = THREE.LinearFilter; skyTex.minFilter = THREE.LinearMipmapLinearFilter;
+  skyTex.generateMipmaps = true; skyTex.needsUpdate = true;
+  const r = { sc, beta, grid, box, tex, skyTex, M, T: new THREE.Vector2(tH, tH * sc.dh / sc.dw), relief, reliefLo,
+    pitch: Math.asin(THREE.MathUtils.clamp(-R[1][2], -1, 1)) };
+
+  // guscio chiuso, con la porta nella parete di fondo
+  const { min: b0, max: b1 } = box, Q = [];
+  ry(Q, 0, b0.x, b1.x, b0.z, b1.z, 1); ry(Q, b1.y, b0.x, b1.x, b0.z, b1.z, -1);
+  rx(Q, b0.x, 0, b1.y, b0.z, b1.z, 1); rx(Q, b1.x, 0, b1.y, b0.z, b1.z, -1);
+  rz(Q, b0.z, b0.x, b1.x, 0, b1.y, 1);
+  wallZ(Q, BACK, b0.x, b1.x, b1.y, [[-DOOR_W / 2, DOOR_W / 2, DOOR_H]], -1);
+  r.shell = new THREE.Mesh(quadsGeo(Q), shellMat(r));
+  r.shell.renderOrder = 1;   // dopo il rilievo: quello che copre non si calcola
+
+  // colore medio della foto: è la luce che esce dalla porta nel corridoio
+  const cv = document.createElement("canvas"); cv.width = cv.height = 32;
+  const cx2 = cv.getContext("2d", { willReadFrequently: true }); cx2.imageSmoothingQuality = "high"; cx2.drawImage(tex.image, 0, 0, 32, 32);
+  const px = cx2.getImageData(0, 0, 32, 32).data, avg = [0, 0, 0];
+  for (let i = 0; i < 1024; i++) for (let k = 0; k < 3; k++) avg[k] += Math.pow(px[i * 4 + k] / 255, 2.2) / 1024;
+  const top = Math.max(...avg, 1e-3);
+  r.glow = new THREE.Vector3(avg[0] / top, avg[1] / top, avg[2] / top);
+  return r;
 }
 
 async function loadRoom(sc) {
@@ -433,13 +692,9 @@ async function loadRoom(sc) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
-  const mesh = buildRoomMesh(sc, D, tex);
-  const r = { sc, mesh, grid: decodeGrid(sc.grid), extras: [] };
-  // varco verso la stanza successiva: una colonna di brace
-  const portal = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 2.6, 40, 1, true), portalMat);
-  portal.position.set(sc.portal[0], 1.3, sc.portal[1]);
-  portal.renderOrder = 3;
-  r.portal = portal; r.extras.push(portal);
+  const r = buildRoom(sc, D, tex);
+  r.group = new THREE.Group();
+  r.group.add(r.shell, r.relief, r.reliefLo);
   // il foglio per terra
   if (sc.doc) {
     const dt = await new Promise((res, rej) => texLoader.load(sc.doc.tex, res, undefined, rej));
@@ -448,65 +703,111 @@ async function loadRoom(sc) {
     const geo = new THREE.PlaneGeometry(w, h); geo.rotateX(-Math.PI / 2);
     const m = new THREE.Mesh(geo, docMat(dt));
     // a un metro e mezzo davanti, sul pavimento ricostruito
-    const R = sc.R, f = new THREE.Vector2(-R[0][2], -R[2][2]).normalize();
-    let px = f.x * 1.4, pz = f.y * 1.4;
-    r.grid.cells && (() => { for (let s = 1.4; s > 0.6; s -= 0.1) { px = f.x * s; pz = f.y * s; if (cellWalk(r.grid, px, pz)) break; } })();
-    mesh.updateMatrixWorld();
-    const hit = new THREE.Raycaster(new THREE.Vector3(px, 1.4, pz), new THREE.Vector3(0, -1, 0), 0, 3).intersectObject(mesh)[0];
+    let px = 0, pz = -1.4;
+    for (let s = 1.4; s > 0.6; s -= 0.1) { pz = -s; if (cellWalk(r.grid, ...rot(px, pz, -r.beta))) break; }
+    r.relief.updateMatrixWorld();
+    const hit = new THREE.Raycaster(new THREE.Vector3(px, 1.4, pz), new THREE.Vector3(0, -1, 0), 0, 3).intersectObject(r.relief)[0];
     m.position.set(px, (hit ? hit.point.y : 0) + 0.03, pz);
-    m.rotation.y = Math.atan2(-f.x, -f.y) + Math.PI + 0.35;
+    m.rotation.y = Math.PI + 0.35;
     m.renderOrder = 1;
-    r.doc = m; r.extras.push(m);
+    r.doc = m; r.group.add(m);
   }
   return r;
 }
 
-const portalMat = new THREE.ShaderMaterial({
-  uniforms: U, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-  vertexShader: /* glsl */`
-    varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: /* glsl */`
-    uniform float uTime; varying vec2 vUv;
-    void main(){
-      float y = vUv.y;
-      float band = 0.5 + 0.5 * sin(vUv.x * 37.7 + uTime * 1.3) * sin(y * 9.0 - uTime * 2.1);
-      float a = pow(1.0 - y, 1.6) * (0.35 + 0.35 * band);
-      gl_FragColor = vec4(vec3(1.0, 0.42, 0.15) * a, a);
-    }`,
-});
-const docMat = (tex) => new THREE.ShaderMaterial({
-  uniforms: { ...U, uMap: { value: tex } }, transparent: true, depthWrite: false,
-  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-  vertexShader: /* glsl */`
-    varying vec2 vUv; varying vec3 vW;
-    void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: /* glsl */`
-    uniform sampler2D uMap; uniform float uAsh, uTorch, uFogDensity; uniform vec3 uCamPos, uCamDir, uFogColor;
-    varying vec2 vUv; varying vec3 vW;
-    void main(){
-      vec3 col = texture2D(uMap, vUv).rgb;
-      vec2 q = (vUv - 0.5) * vec2(1.0, 1.0); float r = length(q * vec2(1.25, 1.0)) * 2.0;
-      float a = 1.0 - smoothstep(0.62, 0.98, r);          // il foglio si fonde con le macerie
-      col = mix(col, vec3(0.6, 0.58, 0.55), clamp(uAsh * 0.6, 0.0, 0.6));
-      vec3 L = vW - uCamPos; float d = length(L); L /= d;
-      float lit = mix(1.0, 0.28 + 1.35 * smoothstep(0.86, 0.975, dot(L, uCamDir)) / (1.0 + 0.09 * d * d), uTorch);
-      col *= lit;
-      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
-      gl_FragColor = vec4(mix(col, uFogColor, fogF), a);
-      #include <colorspace_fragment>
-    }`,
-});
-function cellWalk(g, x, z) {
-  const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
-  return i >= 0 && j >= 0 && i < g.w && j < g.h && g.cells[j * g.w + i] === 1;
+// ---------- il percorso: un corridoio con le stanze alternate ai due lati ----------
+function buildWorld() {
+  const split = world.scenes.findIndex((s) => s.group === "Dentro");
+  const reach = [-Infinity, -Infinity];   // fin dove arrivano i gusci già messi, per lato
+  rooms.forEach((r, k) => {
+    const side = k % 2 === 0 ? -1 : 1;    // -1: porta a nord (la foto guarda verso -z), +1: a sud
+    const lo = side < 0 ? r.box.min.x : -r.box.max.x, hi = side < 0 ? r.box.max.x : -r.box.min.x;
+    let X = k === 0 ? 0 : rooms[k - 1].door.x + STEP + (k === split ? THRESH_GAP : 0);
+    const s = side < 0 ? 0 : 1;
+    X = Math.max(X, reach[s] + 0.4 - lo);
+    reach[s] = X + hi;
+    r.side = side; r.theta = side < 0 ? 0 : Math.PI;
+    r.origin = new THREE.Vector3(X, 0, side * (HW + WALL + BACK));
+    r.door = new THREE.Vector3(X, 0, side * HW);
+    r.group.position.copy(r.origin); r.group.rotation.y = r.theta;
+    r.group.updateMatrixWorld(true);
+    r.doorBox = new THREE.Box3(new THREE.Vector3(X - DOOR_W / 2, 0, Math.min(side * HW, side * (HW + WALL))),
+      new THREE.Vector3(X + DOOR_W / 2, DOOR_H, Math.max(side * HW, side * (HW + WALL))));
+    if (r.doc) r.docPos = r.doc.getWorldPosition(new THREE.Vector3());
+    scene.add(r.group);
+  });
+  const xs = rooms[0].door.x - END_GAP, xe = rooms[rooms.length - 1].door.x + END_GAP;
+  const xt = split > 0 ? (rooms[split - 1].door.x + rooms[split].door.x) / 2 : -1e9;
+  W = { xs, xe, xt };
+  LIGHTS.uSplit.value = xt;
+
+  const Q = [], doorsN = [], doorsS = [];
+  for (const r of rooms) {
+    const x0 = r.door.x - DOOR_W / 2, x1 = r.door.x + DOOR_W / 2;
+    (r.side < 0 ? doorsN : doorsS).push([x0, x1, DOOR_H]);
+    const za = r.side * HW, zb = r.side * (HW + WALL), z0 = Math.min(za, zb), z1 = Math.max(za, zb);
+    rx(Q, x0, 0, DOOR_H, z0, z1, 1); rx(Q, x1, 0, DOOR_H, z0, z1, -1);
+    ry(Q, DOOR_H, x0, x1, z0, z1, -1); ry(Q, 0, x0, x1, z0, z1, 1);
+  }
+  ry(Q, 0, xs - WALL, xe + WALL, -HW, HW, 1);
+  ry(Q, CH, xs - WALL, xe + WALL, -HW, HW, -1);
+  wallZ(Q, -HW, xs - WALL, xe + WALL, CH, doorsN, 1);
+  wallZ(Q, HW, xs - WALL, xe + WALL, CH, doorsS, -1);
+  const endDoor = [[-DOOR_W / 2, DOOR_W / 2, DOOR_H]];
+  wallX(Q, xs, -HW, HW, CH, endDoor, 1); wallX(Q, xe, -HW, HW, CH, endDoor, -1);
+  for (const [x0, x1] of [[xs - WALL, xs], [xe, xe + WALL]]) {
+    rz(Q, -DOOR_W / 2, x0, x1, 0, DOOR_H, 1); rz(Q, DOOR_W / 2, x0, x1, 0, DOOR_H, -1); ry(Q, DOOR_H, x0, x1, -DOOR_W / 2, DOOR_W / 2, -1);
+  }
+  if (split > 0) {
+    const a = xt - WALL / 2, b = xt + WALL / 2, gap = [[-TW / 2, TW / 2, TH]];
+    wallX(Q, a, -HW, HW, CH, gap, -1); wallX(Q, b, -HW, HW, CH, gap, 1);
+    rz(Q, -TW / 2, a, b, 0, TH, 1); rz(Q, TW / 2, a, b, 0, TH, -1); ry(Q, TH, a, b, -TW / 2, TW / 2, -1);
+  }
+  scene.add(new THREE.Mesh(quadsGeo(Q), hallMat));
+  const C = [];
+  rx(C, xs - WALL, 0, DOOR_H, -DOOR_W / 2, DOOR_W / 2, 1); rx(C, xe + WALL, 0, DOOR_H, -DOOR_W / 2, DOOR_W / 2, -1);
+  scene.add(new THREE.Mesh(quadsGeo(C), emberMat));
+
+  // luci: una per porta, appena dentro la stanza, rivolta verso il corridoio; due di brace in fondo
+  rooms.forEach((r, k) => {
+    LIGHTS.uLP.value[k].set(r.door.x, 1.5, r.side * (HW + WALL + 0.35));
+    LIGHTS.uLD.value[k].set(0, 0, -r.side);
+    LIGHTS.uLC.value[k].copy(r.glow).multiplyScalar(1.5);
+  });
+  LIGHTS.uLP.value[NL - 2].set(xs - WALL - 0.3, 1.0, 0); LIGHTS.uLD.value[NL - 2].set(1, 0, 0);
+  LIGHTS.uLP.value[NL - 1].set(xe + WALL + 0.3, 1.0, 0); LIGHTS.uLD.value[NL - 1].set(-1, 0, 0);
+
+  // cartelli sopra le porte
+  const mk = (pos, text, inside) => {
+    const el = document.createElement("div"); el.className = "ptag"; el.hidden = true; $("tags").appendChild(el);
+    return { pos, text, inside, el, shown: "" };
+  };
+  tags = rooms.map((r, k) => mk(new THREE.Vector3(r.door.x, DOOR_H + 0.35, r.side * HW), `${k + 1} · ${r.sc.label}`, "Corridoio"));
+  tags.push(mk(new THREE.Vector3(xs, DOOR_H + 0.35, 0), "Dall'altra parte", null));
+  tags.push(mk(new THREE.Vector3(xe, DOOR_H + 0.35, 0), "Di nuovo all'arco", null));
+  if (split > 0) tags.push(mk(new THREE.Vector3(xt, TH + 0.3, 0), () => (player.x < xt ? "Dentro" : "Fuori"), null));
 }
+let tags = [];
 
 // ---------- calpestabilità ----------
+// coordinate della stanza da quelle del mondo
+const toRoom = (r, x, z) => rot(x - r.origin.x, z - r.origin.z, -r.theta);
+function inRoom(r, x, z) {
+  const [cx, cz] = toRoom(r, x, z);
+  return cx > r.box.min.x && cx < r.box.max.x && cz > r.box.min.z && cz < BACK;
+}
 function walkable(x, z) {
-  const g = room.grid;
-  const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
-  if (i < 0 || j < 0 || i >= g.w || j >= g.h) return false;
-  return g.cells[j * g.w + i] === 1;
+  if (x > W.xs && x < W.xe && Math.abs(z) < HW) return !(Math.abs(x - W.xt) < WALL / 2 && Math.abs(z) > TW / 2);
+  if (Math.abs(z) < DOOR_W / 2 && ((x > W.xs - WALL && x <= W.xs) || (x >= W.xe && x < W.xe + WALL))) return true;   // nella porta di brace
+  for (const r of rooms) {
+    const [cx, cz] = toRoom(r, x, z);
+    if (cz > BACK + WALL + 0.01 || cz < r.box.min.z + 0.25 || cx < r.box.min.x + 0.25 || cx > r.box.max.x - 0.25) continue;
+    if (Math.abs(cx) < DOOR_W / 2 && cz >= BACK) return true;                // soglia
+    if (cz >= BACK) continue;
+    if (Math.abs(cx) < DOOR_W / 2 - 0.02 && cz > -0.6) return true;         // dalla porta al punto di ripresa
+    if (cellWalk(r.grid, ...rot(cx, cz, -r.beta))) return true;
+  }
+  return false;
 }
 function free(x, z) {
   if (!walkable(x, z)) return false;
@@ -520,45 +821,28 @@ function free(x, z) {
 // ---------- stato del giocatore ----------
 const player = { x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0 };
 const input = { f: 0, s: 0, run: false, jx: 0, jy: 0 };
-function placeAtOrigin(sc) {
-  player.x = 0; player.z = 0; player.vx = player.vz = 0;
-  // guarda esattamente come la fotografia originale
-  const R = sc.R, dir = new THREE.Vector3(-R[0][2], -R[1][2], -R[2][2]);
-  player.yaw = Math.atan2(-dir.x, -dir.z);
-  player.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
-  fitFov(sc);
+// nel punto di ripresa, guardando esattamente come la fotografia originale
+function placeAt(r) {
+  player.x = r.origin.x; player.z = r.origin.z; player.vx = player.vz = 0;
+  const R = r.sc.R;
+  const [dx, dz] = rot(...rot(-R[0][2], -R[2][2], r.beta), r.theta);
+  player.yaw = Math.atan2(-dx, -dz);
+  player.pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(-R[1][2], -1, 1)), -1.35, 1.35);
 }
-// campo visivo: in orizzontale la foto riempie la larghezza; in verticale (telefono) un compromesso
-function fitFov(sc) {
-  const t = Math.tan(THREE.MathUtils.degToRad(sc.hfov) / 2);
-  const fillW = 2 * Math.atan(t / camera.aspect), fillH = 2 * Math.atan(t * sc.dh / sc.dw);
-  let v = camera.aspect >= 1 ? fillW : Math.sqrt(fillW * fillH);
-  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(v), 45, 80);
-  camera.updateProjectionMatrix();
-}
-window.addEventListener("resize", () => { if (room) fitFov(room.sc); });
 
-const cache = new Map();
-async function goTo(i, instant = false) {
-  if (!world || (current === i && room)) return;
-  const sc = world.scenes[i];
-  if (!instant) { $("fade").classList.add("on"); await new Promise((r) => setTimeout(r, 450)); }
-  let r = cache.get(i);
-  if (!r) { r = await loadRoom(sc); cache.set(i, r); }
-  if (room) { scene.remove(room.mesh); room.extras.forEach((o) => scene.remove(o)); }
-  room = r; current = i;
-  scene.add(room.mesh); room.extras.forEach((o) => scene.add(o));
-  placeAtOrigin(sc);
-  U.uAsh.value = 0.12;
-  arrivedAt = performance.now();
-  const nxt = world.scenes[(i + 1) % world.scenes.length];
-  $("ptag").textContent = i + 1 < world.scenes.length ? `Verso ${nxt.label.toLowerCase()}` : `Di nuovo all'arco`;
-  $("roomName").textContent = `${sc.group} · ${i + 1} di ${world.scenes.length} · ${sc.label}`;
-  document.querySelectorAll(".rooms .btn").forEach((b, k) => b.setAttribute("aria-current", k === i ? "true" : "false"));
+let busy = false, arrivedAt = 0;
+async function teleport(fn) {
+  if (busy) return;
+  busy = true;
+  $("fade").classList.add("on"); await new Promise((r) => setTimeout(r, 450));
+  fn(); arrivedAt = performance.now();
   $("fade").classList.remove("on");
-  // precarica la successiva
-  const nx = (i + 1) % world.scenes.length;
-  if (!cache.has(nx)) loadRoom(world.scenes[nx]).then((rr) => cache.set(nx, rr)).catch(() => {});
+  busy = false;
+}
+function goTo(i, instant = false) {
+  if (!rooms[i]) return;
+  if (instant) { placeAt(rooms[i]); return; }
+  teleport(() => placeAt(rooms[i]));
 }
 
 // ---------- input: tastiera + mouse ----------
@@ -678,7 +962,6 @@ $("bAudio").addEventListener("click", () => {
 (function grain() {
   const g = $("grain"), x = g.getContext("2d"), img = x.createImageData(160, 160);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let t = 0;
   const step = () => {
     for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
     x.putImageData(img, 0, 0);
@@ -690,12 +973,12 @@ $("bAudio").addEventListener("click", () => {
 
 // ---------- ciclo principale ----------
 const clock = new THREE.Clock();
-const fwd = new THREE.Vector3(), tmpV = new THREE.Vector3();
-let hudHidden = true;
+const fwd = new THREE.Vector3(), tmpV = new THREE.Vector3(), frustum = new THREE.Frustum(), projView = new THREE.Matrix4();
+let hudHidden = true, where = null;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   U.uTime.value += dt;
-  if (room) {
+  if (W) {
     // intenzione di movimento
     let mf = 0, ms = 0;
     if (keys.has("KeyW") || keys.has("ArrowUp")) mf += 1;
@@ -703,8 +986,9 @@ function frame() {
     if (keys.has("KeyD") || keys.has("ArrowRight")) ms += 1;
     if (keys.has("KeyA") || keys.has("ArrowLeft")) ms -= 1;
     mf += -input.jy; ms += input.jx;
+    if (busy) mf = ms = 0;
     const run = keys.has("ShiftLeft") || keys.has("ShiftRight") || Math.hypot(input.jx, input.jy) > 0.95;
-    const sp = run ? 2.6 : 1.35;
+    const sp = run ? 2.8 : 1.45;
     const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
     const tx = (-sy * mf + cy * ms) * sp, tz = (-cy * mf - sy * ms) * sp;
     const k = 1 - Math.exp(-dt * 9);
@@ -714,28 +998,61 @@ function frame() {
     else if (free(nx, player.z)) { player.x = nx; player.vz *= 0.5; }
     else if (free(player.x, nz)) { player.z = nz; player.vx *= 0.5; }
     else { player.vx = player.vz = 0; }
+    // le due porte di brace in fondo si toccano: si esce da una e si rientra dall'altra
+    if (!busy && performance.now() - arrivedAt > 1200) {
+      const loop = (x) => { player.vx = player.vz = 0; teleport(() => { player.x = x; U.uAsh.value = 0.12; }); };
+      if (player.x < W.xs + 0.03) loop(W.xe - 0.6);
+      else if (player.x > W.xe - 0.03) loop(W.xs + 0.6);
+    }
     const speed = Math.hypot(player.vx, player.vz);
     player.bob += speed * dt * 5.2;
     camera.position.set(player.x, EYE + Math.sin(player.bob) * 0.025 * Math.min(speed, 1.5), player.z);
     camera.rotation.set(player.pitch, player.yaw, 0);
+    camera.updateMatrixWorld();
     // la cenere si accumula col tempo
     U.uAsh.value = Math.min(0.75, U.uAsh.value + dt * 0.004 * (ashLevel + 1));
     U.uTorch.value += (torchTarget - U.uTorch.value) * (1 - Math.exp(-dt * 6));
     U.uCamPos.value.copy(camera.position);
-    ground.position.x = player.x; ground.position.z = player.z;
-    dome.position.copy(camera.position);
     camera.getWorldDirection(fwd); U.uCamDir.value.copy(fwd);
-    const fd = (room.sc.group === "Fuori" ? 0.045 : 0.065) + 0.018 * ashLevel;
-    U.uFogDensity.value = fd; scene.fog.density = fd;
-    // varco: etichetta sopra la colonna di brace, e si passa camminandoci dentro
-    const p = room.portal.position, dp = Math.hypot(player.x - p.x, player.z - p.z);
-    tmpV.set(p.x, 2.75, p.z).project(camera);
-    const tag = $("ptag"), vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.1 && Math.abs(tmpV.y) < 1.1 && dp < 12;
-    tag.hidden = !vis || hudHidden;
-    if (vis) tag.style.transform = `translate(${(tmpV.x * 0.5 + 0.5) * window.innerWidth}px, ${(-tmpV.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
-    if (dp < 0.55 && performance.now() - arrivedAt > 1500) goTo((current + 1) % world.scenes.length);
+    const fd = (player.x < W.xt ? 0.05 : 0.065) + 0.018 * ashLevel;
+    U.uFogDensity.value += (fd - U.uFogDensity.value) * (1 - Math.exp(-dt * 1.5)); scene.fog.density = U.uFogDensity.value;
+    const fl = 0.85 + 0.15 * Math.sin(U.uTime.value * 7.0) * Math.sin(U.uTime.value * 2.3);
+    LIGHTS.uLC.value[NL - 2].set(1.0, 0.42, 0.15).multiplyScalar(1.6 * fl);
+    LIGHTS.uLC.value[NL - 1].set(1.0, 0.42, 0.15).multiplyScalar(1.6 * fl);
+
+    // dove sono: in una stanza o nel corridoio
+    const here = rooms.find((r) => inRoom(r, player.x, player.z)) || null;
+    if (here !== where) {
+      where = here;
+      const k = rooms.indexOf(here);
+      $("roomName").textContent = here ? `${here.sc.group} · ${k + 1} di ${rooms.length} · ${here.sc.label}`
+        : `${player.x < W.xt ? "Fuori" : "Dentro"} · il corridoio`;
+      document.querySelectorAll(".rooms .btn").forEach((b, j) => b.setAttribute("aria-current", j === k ? "true" : "false"));
+    }
+    // si disegnano solo le stanze in cui sei o di cui vedi la porta; quelle lontane più semplici
+    frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for (const r of rooms) {
+      const d = r.door.distanceTo(camera.position);
+      r.group.visible = r === here || (frustum.intersectsBox(r.doorBox) && d < 30 && (!here || frustum.intersectsBox(here.doorBox)));
+      r.relief.visible = r === here || d < 6;
+      r.reliefLo.visible = !r.relief.visible;
+    }
+
+    // cartelli: in corridoio i nomi delle stanze, dentro una stanza solo la via d'uscita
+    tags.forEach((t, k) => {
+      const own = here && rooms[k] === here;
+      const text = here ? (own ? t.inside : null) : typeof t.text === "function" ? t.text() : t.text;
+      tmpV.copy(t.pos).project(camera);
+      const d = t.pos.distanceTo(camera.position);
+      const vis = !hudHidden && text && tmpV.z < 1 && Math.abs(tmpV.x) < 1.1 && Math.abs(tmpV.y) < 1.1 && d < 12;
+      t.el.hidden = !vis;
+      if (!vis) return;
+      if (t.shown !== text) { t.el.textContent = text; t.shown = text; }
+      t.el.style.opacity = String(1 - THREE.MathUtils.smoothstep(d, 7, 12));
+      t.el.style.transform = `translate(${(tmpV.x * 0.5 + 0.5) * window.innerWidth}px, ${(-tmpV.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
+    });
     // il foglio: leggibile da vicino
-    const nearDoc = room.doc && Math.hypot(player.x - room.doc.position.x, player.z - room.doc.position.z) < 1.7;
+    const nearDoc = rooms.some((r) => r.docPos && Math.hypot(player.x - r.docPos.x, player.z - r.docPos.z) < 1.7);
     $("bRead").hidden = !nearDoc || hudHidden;
     $("readout").innerHTML = `x <b>${player.x.toFixed(1)}</b> · z <b>${(-player.z).toFixed(1)}</b> m<br>cenere posata <b>${Math.round(U.uAsh.value * 100)}%</b>`;
   }
@@ -752,18 +1069,24 @@ function frame() {
   requestAnimationFrame(frame);
   try {
     world = await (await fetch("world.json")).json();
-    const rooms = $("rooms");
+    const roomsEl = $("rooms");
     world.scenes.forEach((sc, i) => {
       if (i === 0 || world.scenes[i - 1].group !== sc.group) {
-        const l = document.createElement("span"); l.className = "grp"; l.textContent = sc.group; rooms.appendChild(l);
+        const l = document.createElement("span"); l.className = "grp"; l.textContent = sc.group; roomsEl.appendChild(l);
       }
       const b = document.createElement("button");
       b.className = "btn"; b.type = "button"; b.id = "room" + (i + 1);
       b.textContent = String(i + 1); b.title = sc.label || sc.name;
       b.addEventListener("click", () => goTo(i));
-      rooms.appendChild(b);
+      roomsEl.appendChild(b);
     });
-    await goTo(0, true);
+    let done = 0;
+    rooms = await Promise.all(world.scenes.map((sc) => loadRoom(sc).then((r) => {
+      $("load").textContent = `Carico le stanze… ${++done} di ${world.scenes.length}`;
+      return r;
+    })));
+    buildWorld();
+    goTo(0, true);
     $("load").textContent = `${world.scenes.length} stanze pronte`;
     $("enter").disabled = false;
   } catch (err) {
@@ -772,8 +1095,9 @@ function frame() {
 })();
 
 function openDoc() {
-  if (!room || !room.sc.doc) return;
-  $("docImg").src = room.sc.doc.tex;
+  const r = rooms.find((q) => q.docPos && Math.hypot(player.x - q.docPos.x, player.z - q.docPos.z) < 1.7);
+  if (!r) return;
+  $("docImg").src = r.sc.doc.tex;
   $("docView").hidden = false;
   if (document.exitPointerLock) document.exitPointerLock();
   $("docClose").focus();
