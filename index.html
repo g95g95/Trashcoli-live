@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Dentro Faraona</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: schermo intero, la scena è tutto; HUD sottile agli angoli come etichette di un reperto. Tema unico scuro, scelto. */
+:root {
+  --void: #141210;        /* buio con una punta calda di fuliggine */
+  --soot: #24201c;
+  --ash: #b9b2a6;         /* grigio cenere, tendente al caldo */
+  --bone: #ece6da;        /* testo principale */
+  --ember: #e2652e;       /* brace: unico accento */
+  --line: rgba(236, 230, 218, 0.16);
+  --glass: rgba(20, 18, 16, 0.62);
+  --f-display: "IM Fell English SC", "Iowan Old Style", Georgia, serif;
+  --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --s-1: 0.75rem; --s-2: 0.875rem; --s-3: 1rem; --s-4: 1.25rem; --s-5: 2rem; --s-6: clamp(2.4rem, 7vw, 4.2rem);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--void); color: var(--bone); font-family: var(--f-body); font-size: var(--s-3);
+  overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none;
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--void); }
+.vignette { position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(8, 7, 6, 0.72) 100%); }
+.grain { position: fixed; inset: -50%; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay; }
+
+/* HUD */
+.hud { position: fixed; inset: 0; pointer-events: none;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(14px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-rows: auto 1fr auto; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.tag { display: grid; gap: 2px; min-width: 0; }
+.tag .t { font-family: var(--f-display); font-size: var(--s-4); letter-spacing: 0.04em; line-height: 1; }
+.tag .m { font-family: var(--f-mono); font-size: var(--s-1); color: var(--ash); letter-spacing: 0.06em; text-transform: uppercase; }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+.btn { font: 500 var(--s-1)/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--bone);
+  background: var(--glass); border: 1px solid var(--line); border-radius: 3px; padding: 9px 11px; cursor: pointer;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); min-height: 36px; }
+.btn[aria-pressed="true"] { border-color: var(--ember); color: var(--ember); }
+.btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.rooms { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; }
+.rooms .btn { min-width: 40px; text-align: center; }
+.rooms .btn[aria-current="true"] { background: var(--bone); color: var(--void); border-color: var(--bone); }
+.readout { font-family: var(--f-mono); font-size: var(--s-1); color: var(--ash); letter-spacing: 0.04em; text-align: right;
+  font-variant-numeric: tabular-nums; line-height: 1.5; }
+.readout b { color: var(--bone); font-weight: 500; }
+.cross { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%;
+  background: var(--bone); opacity: 0.5; pointer-events: none; }
+
+/* joystick touch */
+.stick { position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+  border: 1px solid var(--line); background: rgba(20, 18, 16, 0.35); pointer-events: none; }
+.stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+  background: rgba(236, 230, 218, 0.28); border: 1px solid rgba(236, 230, 218, 0.4); }
+
+/* ingresso */
+.gate { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(14, 12, 11, 0.78);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px; transition: opacity 0.6s ease; }
+.gate.out { opacity: 0; pointer-events: none; }
+.card { max-width: 34rem; display: grid; gap: 18px; }
+.card .kicker { font-family: var(--f-mono); font-size: var(--s-1); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ember); }
+.card h1 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: var(--s-6); line-height: 0.95; letter-spacing: 0.02em; text-wrap: balance; }
+.card p { margin: 0; color: var(--ash); line-height: 1.55; max-width: 60ch; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: var(--s-2); color: var(--ash); }
+.keys kbd { font-family: var(--f-mono); font-size: var(--s-1); color: var(--bone); border: 1px solid var(--line); border-radius: 3px; padding: 2px 6px; white-space: nowrap; justify-self: start; }
+.enter { justify-self: start; font: 700 var(--s-3)/1 var(--f-body); letter-spacing: 0.02em; color: var(--void); background: var(--bone);
+  border: 0; border-radius: 3px; padding: 14px 22px; cursor: pointer; }
+.enter:disabled { opacity: 0.5; cursor: progress; }
+.enter:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
+.load { font-family: var(--f-mono); font-size: var(--s-1); color: var(--ash); letter-spacing: 0.06em; }
+.fade { position: fixed; inset: 0; background: var(--ash); opacity: 0; pointer-events: none; transition: opacity 0.45s ease; }
+.fade.on { opacity: 1; }
+.err { color: var(--ember); }
+.grp { font-family: var(--f-mono); font-size: var(--s-1); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ash);
+  align-self: center; padding-inline: 4px 2px; }
+.grp:not(:first-child) { margin-left: 8px; }
+.ptag { position: fixed; left: 0; top: 0; pointer-events: none; white-space: nowrap;
+  font-family: var(--f-display); font-size: var(--s-4); color: var(--ember); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
+.read { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  border-color: var(--ember); color: var(--bone); pointer-events: auto; }
+.docview { position: fixed; inset: 0; z-index: 20; background: rgba(12, 10, 9, 0.92); display: grid; place-items: center; gap: 14px;
+  align-content: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px)); }
+.docview figure { margin: 0; display: grid; gap: 10px; justify-items: center; min-width: 0; }
+.docview img { max-height: 78vh; max-width: 100%; width: auto; border-radius: 2px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); }
+.docview figcaption { font-size: var(--s-2); color: var(--ash); text-align: center; }
+.mono { font-family: var(--f-mono); font-size: var(--s-1); letter-spacing: 0.04em; }
+@media (pointer: coarse) { .desk { display: none; } }
+@media (pointer: fine) { .touch { display: none; } }
+@media (prefers-reduced-motion: reduce) { .gate, .fade { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<canvas id="scene" aria-label="Scena 3D esplorabile in prima persona"></canvas>
+<div class="vignette"></div>
+<canvas class="grain" id="grain" width="160" height="160" aria-hidden="true"></canvas>
+<div class="cross" id="cross" hidden></div>
+
+<div class="hud" id="hud" hidden>
+  <div class="top">
+    <div class="tag">
+      <span class="t">Dentro Faraona</span>
+      <span class="m" id="roomName">—</span>
+    </div>
+    <div class="tools">
+      <button class="btn" id="bAsh" type="button" title="Intensità della cenere">Cenere: fitta</button>
+      <button class="btn" id="bTorch" type="button" aria-pressed="false" title="Torcia (F)">Torcia</button>
+      <button class="btn" id="bAudio" type="button" aria-pressed="false" title="Vento">Vento</button>
+    </div>
+  </div>
+  <div></div>
+  <div class="bottom">
+    <div class="rooms" id="rooms" role="group" aria-label="Stanze"></div>
+    <div class="readout" id="readout"></div>
+  </div>
+</div>
+<div class="ptag" id="ptag" hidden></div>
+<button class="btn read" id="bRead" type="button" hidden>Leggi il foglio <span class="desk">· E</span></button>
+<div class="docview" id="docView" hidden role="dialog" aria-label="Il foglio trovato nella cappella">
+  <figure>
+    <img id="docImg" alt="Foglietto devozionale 'Le Lampade Viventi' sulle macerie del pavimento della cappella">
+    <figcaption>Trovato tra le macerie della cappella · <span class="mono">Le Lampade Viventi</span></figcaption>
+  </figure>
+  <button class="btn" id="docClose" type="button">Rimettilo giù</button>
+</div>
+<div class="stick" id="stick" hidden><i id="knob"></i></div>
+<div class="fade" id="fade"></div>
+
+<div class="gate" id="gate">
+  <div class="card">
+    <span class="kicker">Trashcoli · urbex · abbandonato</span>
+    <h1>Dentro Faraona</h1>
+    <p>Nove luoghi ricostruiti dalle fotografie, cinque fuori e quattro dentro. Dove l'obiettivo non ha visto, il mondo finisce nella nebbia. Entra nella colonna di brace per passare al luogo successivo. Piove cenere.</p>
+    <div class="keys desk">
+      <kbd>Clic</kbd><span>cattura il mouse per guardarti intorno</span>
+      <kbd>W A S D</kbd><span>cammina · <kbd>Shift</kbd> corri</span>
+      <kbd>F</kbd><span>torcia · <kbd>E</kbd> leggi</span>
+      <kbd>1–9</kbd><span>salta a un luogo · <kbd>Esc</kbd> libera il mouse</span>
+    </div>
+    <div class="keys touch">
+      <kbd>Pollice sinistro</kbd><span>trascina per camminare</span>
+      <kbd>Resto dello schermo</kbd><span>trascina per guardare</span>
+    </div>
+    <button class="enter" id="enter" type="button" disabled>Entra</button>
+    <span class="load" id="load">Carico le stanze…</span>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("scene");
+const EYE = 1.6, RADIUS = 0.22;
+const ASH_LEVELS = [
+  { name: "leggera", n: 3500, speed: 0.55 },
+  { name: "fitta", n: 9000, speed: 0.75 },
+  { name: "tempesta", n: 18000, speed: 1.15 },
+];
+
+// ---------- renderer ----------
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const FOG = new THREE.Color(0x342e29);
+renderer.setClearColor(FOG);
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(FOG, 0.075);
+const camera = new THREE.PerspectiveCamera(63, 1, 0.05, 80);
+camera.rotation.order = "YXZ";
+scene.add(camera);
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ---------- uniforms condivisi ----------
+const U = {
+  uTime: { value: 0 },
+  uAsh: { value: 0.12 },          // quanta cenere si è posata
+  uTorch: { value: 0 },
+  uCamPos: { value: new THREE.Vector3() },
+  uCamDir: { value: new THREE.Vector3(0, 0, -1) },
+  uFogColor: { value: FOG },
+  uFogDensity: { value: 0.075 },
+};
+
+// ---------- materiale della stanza: foto + cenere posata + nebbia + torcia ----------
+const roomMat = (tex) => new THREE.ShaderMaterial({
+  uniforms: { ...U, uMap: { value: tex } },
+  vertexShader: /* glsl */`
+    attribute float sky;
+    varying vec2 vUv; varying vec3 vW; varying vec3 vN; varying float vSky;
+    void main() {
+      vUv = uv; vSky = sky;
+      vec4 w = modelMatrix * vec4(position, 1.0);
+      vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D uMap; uniform float uAsh, uTorch, uTime, uFogDensity;
+    uniform vec3 uCamPos, uCamDir, uFogColor;
+    varying vec2 vUv; varying vec3 vW; varying vec3 vN; varying float vSky;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+      return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+    void main() {
+      vec3 col = texture2D(uMap, vUv).rgb;
+      // cenere che si deposita sulle superfici rivolte verso l'alto
+      float up = smoothstep(0.55, 0.95, vN.y);
+      float grain = n2(vW.xz * 9.0) * 0.6 + n2(vW.xz * 31.0) * 0.4;
+      float cover = clamp(up * uAsh * (0.55 + grain), 0.0, 0.85) * (1.0 - vSky);
+      vec3 ashCol = vec3(0.34, 0.33, 0.31) * (0.75 + 0.35 * grain);
+      col = mix(col, ashCol, cover);
+      // torcia: abbassa l'ambiente e illumina un cono
+      vec3 L = vW - uCamPos; float d = length(L); L /= d;
+      float cone = smoothstep(0.86, 0.975, dot(L, uCamDir));
+      float fall = 1.0 / (1.0 + 0.09 * d * d);
+      float lit = mix(1.0, 0.28 + 1.35 * cone * fall + 0.12 * fall, uTorch);
+      col *= lit;
+      // nebbia esponenziale + bordi della foto che sfumano nel nulla
+      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
+      float e = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));
+      fogF = mix(fogF, 0.25 * fogF, vSky);             // il cielo resta visibile oltre la nebbia
+      fogF = max(fogF, 1.0 - smoothstep(0.0, 0.045, e));
+      gl_FragColor = vec4(mix(col, uFogColor * mix(1.0, 0.35, uTorch), fogF), 1.0);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// ---------- fuori dalla foto: una distesa di cenere e una cappa di foschia ----------
+const NOISE = /* glsl */`
+  float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+    return mix(mix(h2(i),h2(i+vec2(1,0)),f.x), mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x), f.y); }
+  float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<5;i++){ s+=a*n2(p); p=p*2.03+17.1; a*=0.5; } return s; }`;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(140, 140).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
+  uniforms: U,
+  vertexShader: /* glsl */`
+    varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: NOISE + /* glsl */`
+    uniform float uAsh, uTorch, uTime, uFogDensity; uniform vec3 uCamPos, uCamDir, uFogColor; varying vec3 vW;
+    void main(){
+      vec2 p = vW.xz;
+      float dune = fbm(p * 0.35 + vec2(uTime * 0.01, 0.0));
+      float dist = length(vW.xz - uCamPos.xz);
+      float fine = mix(fbm(p * 6.0), 0.5, smoothstep(4.0, 14.0, dist));
+      vec3 col = mix(vec3(0.016, 0.014, 0.012), vec3(0.075, 0.068, 0.06), dune * 0.7 + fine * 0.3);
+      col = mix(col, vec3(0.16, 0.155, 0.145), clamp(uAsh * 0.6 * fine, 0.0, 0.45));
+      float spark = step(0.995, h2(floor(p * 40.0))) * (0.5 + 0.5 * sin(uTime * 3.0 + h2(floor(p * 40.0)) * 40.0));
+      col += vec3(1.0, 0.4, 0.12) * spark * 0.35;      // qualche brace ancora accesa
+      vec3 L = vW - uCamPos; float d = length(L); L /= d;
+      col *= mix(1.0, 0.25 + 1.3 * smoothstep(0.86, 0.975, dot(L, uCamDir)) / (1.0 + 0.09 * d * d), uTorch);
+      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d * 1.4);
+      gl_FragColor = vec4(mix(col, uFogColor * mix(1.0, 0.35, uTorch), fogF), 1.0);
+      #include <colorspace_fragment>
+    }`,
+}));
+ground.position.y = -0.06;
+ground.renderOrder = -1;
+scene.add(ground);
+
+const dome = new THREE.Mesh(new THREE.SphereGeometry(70, 32, 16), new THREE.ShaderMaterial({
+  uniforms: U, side: THREE.BackSide, depthWrite: false,
+  vertexShader: /* glsl */`
+    varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: NOISE + /* glsl */`
+    uniform float uTime, uTorch; uniform vec3 uFogColor; varying vec3 vD;
+    void main(){
+      float y = vD.y;
+      vec2 q = vD.xz / (abs(y) + 0.35) * 2.0;
+      float haze = fbm(q + vec2(uTime * 0.03, uTime * 0.012));
+      vec3 top = uFogColor * 0.45;
+      vec3 col = mix(uFogColor, top, smoothstep(0.0, 0.85, y));
+      col *= 0.92 + 0.16 * haze;
+      col += vec3(0.30, 0.10, 0.02) * pow(1.0 - abs(y), 10.0) * 0.12;   // bagliore basso, come un incendio lontano
+      gl_FragColor = vec4(col * mix(1.0, 0.35, uTorch), 1.0);
+      #include <colorspace_fragment>
+    }`,
+}));
+dome.renderOrder = -2;
+scene.add(dome);
+
+// ---------- cenere che cade ----------
+let ash = null;
+function buildAsh(level) {
+  if (ash) { scene.remove(ash); ash.geometry.dispose(); }
+  const L = ASH_LEVELS[level];
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(L.n * 3), seed = new Float32Array(L.n * 4);
+  for (let i = 0; i < L.n; i++) {
+    pos[i * 3] = Math.random() * 16 - 8; pos[i * 3 + 1] = Math.random() * 8; pos[i * 3 + 2] = Math.random() * 16 - 8;
+    const ember = Math.random() < 0.025 ? 1 : 0;
+    seed[i * 4] = Math.random(); seed[i * 4 + 1] = Math.random(); seed[i * 4 + 2] = ember; seed[i * 4 + 3] = 0.5 + Math.random();
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("seed", new THREE.BufferAttribute(seed, 4));
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+  const m = new THREE.ShaderMaterial({
+    uniforms: { ...U, uSpeed: { value: L.speed }, uPx: { value: renderer.getPixelRatio() * window.innerHeight * 0.5 } },
+    transparent: true, depthWrite: false,
+    vertexShader: /* glsl */`
+      attribute vec4 seed; uniform float uTime, uSpeed, uPx; uniform vec3 uCamPos;
+      varying float vEmber; varying float vA; varying float vRot; varying float vDist;
+      void main() {
+        vec3 p = position;
+        float t = uTime * uSpeed * (0.6 + 0.8 * seed.y) * mix(1.0, 0.55, seed.z);
+        p.y -= t;
+        p.x += sin(uTime * 0.7 * seed.w + seed.x * 40.0) * 0.35 + uTime * 0.12;
+        p.z += cos(uTime * 0.5 * seed.w + seed.y * 30.0) * 0.30;
+        // la nube segue il giocatore: scatola 16 x 8 x 16 m che si ripete
+        vec3 box = vec3(16.0, 8.0, 16.0);
+        vec3 c = uCamPos - vec3(8.0, 3.0, 8.0);
+        p = c + mod(p - c, box);
+        vec4 mv = viewMatrix * vec4(p, 1.0);
+        vDist = -mv.z;
+        gl_Position = projectionMatrix * mv;
+        float s = mix(0.022, 0.06, seed.x * seed.x) * mix(1.0, 0.7, seed.z);
+        gl_PointSize = clamp(s * uPx / max(vDist, 0.1), 1.0, 64.0);
+        vEmber = seed.z;
+        vA = smoothstep(0.0, 0.6, p.y) * (1.0 - smoothstep(12.0, 16.0, vDist));
+        vRot = seed.w * 6.2831 + uTime * (seed.x - 0.5);
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float uTime, uTorch; varying float vEmber; varying float vA; varying float vRot; varying float vDist;
+      void main() {
+        vec2 q = gl_PointCoord - 0.5;
+        float cs = cos(vRot), sn = sin(vRot);
+        q = mat2(cs, -sn, sn, cs) * q;
+        q.x *= 1.0 + 0.8 * (1.0 - vEmber);           // fiocchi schiacciati e irregolari
+        float r = length(q) * 2.0;
+        float a = smoothstep(1.0, 0.55, r) * vA;
+        if (a < 0.01) discard;
+        vec3 ashC = mix(vec3(0.58, 0.56, 0.52), vec3(0.22, 0.21, 0.195), smoothstep(0.0, 1.0, fract(vRot * 3.0)));
+        float flick = 0.7 + 0.3 * sin(uTime * 9.0 + vRot * 5.0);
+        vec3 emb = vec3(1.0, 0.45, 0.14) * (1.4 * flick);
+        vec3 col = mix(ashC * mix(1.0, 0.55, uTorch), emb, vEmber);
+        gl_FragColor = vec4(col, a * mix(0.85, 1.0, vEmber));
+        #include <colorspace_fragment>
+      }`,
+  });
+  ash = new THREE.Points(g, m);
+  ash.frustumCulled = false;
+  ash.renderOrder = 2;
+  scene.add(ash);
+}
+
+// ---------- caricamento stanze ----------
+let world = null, current = null, room = null, arrivedAt = 0;
+const texLoader = new THREE.TextureLoader();
+
+async function loadDepth(url) {
+  const blob = await (await fetch(url)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+  const x = c.getContext("2d", { willReadFrequently: true });
+  x.drawImage(bmp, 0, 0);
+  const d = x.getImageData(0, 0, bmp.width, bmp.height).data;
+  const out = new Float32Array(bmp.width * bmp.height);
+  const sky = new Float32Array(bmp.width * bmp.height);
+  for (let i = 0; i < out.length; i++) { out[i] = (d[i * 4] * 256 + d[i * 4 + 1]) / 1000; sky[i] = d[i * 4 + 2] > 127 ? 1 : 0; }
+  return { w: bmp.width, h: bmp.height, z: out, sky };
+}
+
+function decodeGrid(g) {
+  const bin = atob(g.bits), n = g.w * g.h, cells = new Uint8Array(n);
+  for (let i = 0; i < n; i++) cells[i] = (bin.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1;
+  return { ...g, cells };
+}
+
+function buildRoomMesh(sc, D, tex) {
+  const { w, h, z } = D;
+  const fx = (w / 2) / Math.tan(THREE.MathUtils.degToRad(sc.hfov) / 2);
+  const cx = w / 2, cy = h / 2;
+  const R = sc.R;   // matrice 3x3 (righe)
+  const pos = new Float32Array(w * h * 3), uv = new Float32Array(w * h * 2);
+  for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
+    const i = v * w + u, d = z[i];
+    const X = (u + 0.5 - cx) / fx * d, Y = -(v + 0.5 - cy) / fx * d, Z = -d;
+    pos[i * 3] = R[0][0] * X + R[0][1] * Y + R[0][2] * Z;
+    pos[i * 3 + 1] = R[1][0] * X + R[1][1] * Y + R[1][2] * Z + sc.yoff;
+    pos[i * 3 + 2] = R[2][0] * X + R[2][1] * Y + R[2][2] * Z;
+    uv[i * 2] = (u + 0.5) / w; uv[i * 2 + 1] = 1 - (v + 0.5) / h;
+  }
+  // triangoli: scarta quelli che attraversano un salto di profondità (eviterebbero "teli" stirati)
+  const idx = [];
+  const ok = (a, b, c) => {
+    const za = z[a], zb = z[b], zc = z[c];
+    const mx = Math.max(za, zb, zc), mn = Math.min(za, zb, zc);
+    return mx / mn < 1.09 + 0.006 * (h - Math.floor(a / w)) / h * 10;
+  };
+  for (let v = 0; v < h - 1; v++) for (let u = 0; u < w - 1; u++) {
+    const a = v * w + u, b = a + 1, c = a + w, d = c + 1;
+    if (ok(a, c, b)) idx.push(a, c, b);
+    if (ok(b, c, d)) idx.push(b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.setAttribute("sky", new THREE.BufferAttribute(D.sky, 1));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  // le normali calcolate guardano verso la camera originale; per la cenere serve l'orientamento vero
+  const nrm = g.attributes.normal.array;
+  for (let i = 0; i < nrm.length; i += 3) {
+    const px = pos[i], py = pos[i + 1] - EYE, pz = pos[i + 2];
+    if (nrm[i] * px + nrm[i + 1] * py + nrm[i + 2] * pz > 0) { nrm[i] *= -1; nrm[i + 1] *= -1; nrm[i + 2] *= -1; }
+  }
+  const mesh = new THREE.Mesh(g, roomMat(tex));
+  return mesh;
+}
+
+async function loadRoom(sc) {
+  const [D, tex] = await Promise.all([
+    loadDepth(sc.depth),
+    new Promise((res, rej) => texLoader.load(sc.tex, res, undefined, rej)),
+  ]);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  const mesh = buildRoomMesh(sc, D, tex);
+  const r = { sc, mesh, grid: decodeGrid(sc.grid), extras: [] };
+  // varco verso la stanza successiva: una colonna di brace
+  const portal = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 2.6, 40, 1, true), portalMat);
+  portal.position.set(sc.portal[0], 1.3, sc.portal[1]);
+  portal.renderOrder = 3;
+  r.portal = portal; r.extras.push(portal);
+  // il foglio per terra
+  if (sc.doc) {
+    const dt = await new Promise((res, rej) => texLoader.load(sc.doc.tex, res, undefined, rej));
+    dt.colorSpace = THREE.SRGBColorSpace;
+    const w = 0.62, h = w * sc.doc.h / sc.doc.w;
+    const geo = new THREE.PlaneGeometry(w, h); geo.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(geo, docMat(dt));
+    // a un metro e mezzo davanti, sul pavimento ricostruito
+    const R = sc.R, f = new THREE.Vector2(-R[0][2], -R[2][2]).normalize();
+    let px = f.x * 1.4, pz = f.y * 1.4;
+    r.grid.cells && (() => { for (let s = 1.4; s > 0.6; s -= 0.1) { px = f.x * s; pz = f.y * s; if (cellWalk(r.grid, px, pz)) break; } })();
+    mesh.updateMatrixWorld();
+    const hit = new THREE.Raycaster(new THREE.Vector3(px, 1.4, pz), new THREE.Vector3(0, -1, 0), 0, 3).intersectObject(mesh)[0];
+    m.position.set(px, (hit ? hit.point.y : 0) + 0.03, pz);
+    m.rotation.y = Math.atan2(-f.x, -f.y) + Math.PI + 0.35;
+    m.renderOrder = 1;
+    r.doc = m; r.extras.push(m);
+  }
+  return r;
+}
+
+const portalMat = new THREE.ShaderMaterial({
+  uniforms: U, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+  vertexShader: /* glsl */`
+    varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */`
+    uniform float uTime; varying vec2 vUv;
+    void main(){
+      float y = vUv.y;
+      float band = 0.5 + 0.5 * sin(vUv.x * 37.7 + uTime * 1.3) * sin(y * 9.0 - uTime * 2.1);
+      float a = pow(1.0 - y, 1.6) * (0.35 + 0.35 * band);
+      gl_FragColor = vec4(vec3(1.0, 0.42, 0.15) * a, a);
+    }`,
+});
+const docMat = (tex) => new THREE.ShaderMaterial({
+  uniforms: { ...U, uMap: { value: tex } }, transparent: true, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  vertexShader: /* glsl */`
+    varying vec2 vUv; varying vec3 vW;
+    void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D uMap; uniform float uAsh, uTorch, uFogDensity; uniform vec3 uCamPos, uCamDir, uFogColor;
+    varying vec2 vUv; varying vec3 vW;
+    void main(){
+      vec3 col = texture2D(uMap, vUv).rgb;
+      vec2 q = (vUv - 0.5) * vec2(1.0, 1.0); float r = length(q * vec2(1.25, 1.0)) * 2.0;
+      float a = 1.0 - smoothstep(0.62, 0.98, r);          // il foglio si fonde con le macerie
+      col = mix(col, vec3(0.6, 0.58, 0.55), clamp(uAsh * 0.6, 0.0, 0.6));
+      vec3 L = vW - uCamPos; float d = length(L); L /= d;
+      float lit = mix(1.0, 0.28 + 1.35 * smoothstep(0.86, 0.975, dot(L, uCamDir)) / (1.0 + 0.09 * d * d), uTorch);
+      col *= lit;
+      float fogF = 1.0 - exp(-uFogDensity * uFogDensity * d * d);
+      gl_FragColor = vec4(mix(col, uFogColor, fogF), a);
+      #include <colorspace_fragment>
+    }`,
+});
+function cellWalk(g, x, z) {
+  const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
+  return i >= 0 && j >= 0 && i < g.w && j < g.h && g.cells[j * g.w + i] === 1;
+}
+
+// ---------- calpestabilità ----------
+function walkable(x, z) {
+  const g = room.grid;
+  const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
+  if (i < 0 || j < 0 || i >= g.w || j >= g.h) return false;
+  return g.cells[j * g.w + i] === 1;
+}
+function free(x, z) {
+  if (!walkable(x, z)) return false;
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4;
+    if (!walkable(x + Math.cos(a) * RADIUS, z + Math.sin(a) * RADIUS)) return false;
+  }
+  return true;
+}
+
+// ---------- stato del giocatore ----------
+const player = { x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0 };
+const input = { f: 0, s: 0, run: false, jx: 0, jy: 0 };
+function placeAtOrigin(sc) {
+  player.x = 0; player.z = 0; player.vx = player.vz = 0;
+  // guarda esattamente come la fotografia originale
+  const R = sc.R, dir = new THREE.Vector3(-R[0][2], -R[1][2], -R[2][2]);
+  player.yaw = Math.atan2(-dir.x, -dir.z);
+  player.pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+  fitFov(sc);
+}
+// campo visivo: in orizzontale la foto riempie la larghezza; in verticale (telefono) un compromesso
+function fitFov(sc) {
+  const t = Math.tan(THREE.MathUtils.degToRad(sc.hfov) / 2);
+  const fillW = 2 * Math.atan(t / camera.aspect), fillH = 2 * Math.atan(t * sc.dh / sc.dw);
+  let v = camera.aspect >= 1 ? fillW : Math.sqrt(fillW * fillH);
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(v), 45, 80);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", () => { if (room) fitFov(room.sc); });
+
+const cache = new Map();
+async function goTo(i, instant = false) {
+  if (!world || (current === i && room)) return;
+  const sc = world.scenes[i];
+  if (!instant) { $("fade").classList.add("on"); await new Promise((r) => setTimeout(r, 450)); }
+  let r = cache.get(i);
+  if (!r) { r = await loadRoom(sc); cache.set(i, r); }
+  if (room) { scene.remove(room.mesh); room.extras.forEach((o) => scene.remove(o)); }
+  room = r; current = i;
+  scene.add(room.mesh); room.extras.forEach((o) => scene.add(o));
+  placeAtOrigin(sc);
+  U.uAsh.value = 0.12;
+  arrivedAt = performance.now();
+  const nxt = world.scenes[(i + 1) % world.scenes.length];
+  $("ptag").textContent = i + 1 < world.scenes.length ? `Verso ${nxt.label.toLowerCase()}` : `Di nuovo all'arco`;
+  $("roomName").textContent = `${sc.group} · ${i + 1} di ${world.scenes.length} · ${sc.label}`;
+  document.querySelectorAll(".rooms .btn").forEach((b, k) => b.setAttribute("aria-current", k === i ? "true" : "false"));
+  $("fade").classList.remove("on");
+  // precarica la successiva
+  const nx = (i + 1) % world.scenes.length;
+  if (!cache.has(nx)) loadRoom(world.scenes[nx]).then((rr) => cache.set(nx, rr)).catch(() => {});
+}
+
+// ---------- input: tastiera + mouse ----------
+const keys = new Set();
+window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+  keys.add(e.code);
+  if (e.code === "KeyF") toggleTorch();
+  const n = parseInt(e.key, 10);
+  if (world && n >= 1 && n <= world.scenes.length) goTo(n - 1);
+});
+window.addEventListener("keyup", (e) => keys.delete(e.code));
+window.addEventListener("blur", () => keys.clear());
+
+let locked = false;
+document.addEventListener("pointerlockchange", () => {
+  locked = document.pointerLockElement === canvas;
+  $("cross").hidden = !locked;
+});
+document.addEventListener("mousemove", (e) => {
+  if (!locked) return;
+  look(e.movementX, e.movementY, 0.0022);
+});
+function look(dx, dy, k) {
+  player.yaw -= dx * k;
+  player.pitch = THREE.MathUtils.clamp(player.pitch - dy * k, -1.35, 1.35);
+}
+
+// ---------- input: puntatore (mouse senza lock, touch) ----------
+const stickEl = $("stick"), knob = $("knob");
+let stickId = null, stickO = { x: 0, y: 0 };
+const lookers = new Map();
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse") {
+    if (!locked && canvas.requestPointerLock) {
+      try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+    }
+    lookers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    return;
+  }
+  const leftZone = e.clientX < window.innerWidth * 0.42 && e.clientY > window.innerHeight * 0.35;
+  if (leftZone && stickId === null) {
+    stickId = e.pointerId; stickO = { x: e.clientX, y: e.clientY };
+    stickEl.style.left = e.clientX + "px"; stickEl.style.top = e.clientY + "px";
+    knob.style.transform = "translate(0,0)"; stickEl.hidden = false;
+  } else {
+    lookers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (e.pointerId === stickId) {
+    let dx = e.clientX - stickO.x, dy = e.clientY - stickO.y;
+    const L = Math.hypot(dx, dy), M = 48;
+    if (L > M) { dx *= M / L; dy *= M / L; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    input.jx = dx / M; input.jy = dy / M;
+    return;
+  }
+  const p = lookers.get(e.pointerId);
+  if (!p || locked) return;
+  look(e.clientX - p.x, e.clientY - p.y, e.pointerType === "mouse" ? 0.004 : 0.0055);
+  p.x = e.clientX; p.y = e.clientY;
+});
+const endPtr = (e) => {
+  if (e.pointerId === stickId) { stickId = null; stickEl.hidden = true; input.jx = input.jy = 0; }
+  lookers.delete(e.pointerId);
+};
+canvas.addEventListener("pointerup", endPtr);
+canvas.addEventListener("pointercancel", endPtr);
+
+// ---------- pulsanti ----------
+let ashLevel = 1;
+$("bAsh").addEventListener("click", () => {
+  ashLevel = (ashLevel + 1) % ASH_LEVELS.length;
+  $("bAsh").textContent = "Cenere: " + ASH_LEVELS[ashLevel].name;
+  buildAsh(ashLevel);
+  try { localStorage.setItem("faraona.ash", String(ashLevel)); } catch (_) {}
+});
+function toggleTorch() {
+  const on = $("bTorch").getAttribute("aria-pressed") !== "true";
+  $("bTorch").setAttribute("aria-pressed", String(on));
+  torchTarget = on ? 1 : 0;
+}
+let torchTarget = 0;
+$("bTorch").addEventListener("click", toggleTorch);
+
+// vento: rumore marrone filtrato, generato qui
+let audio = null;
+$("bAudio").addEventListener("click", () => {
+  const on = $("bAudio").getAttribute("aria-pressed") !== "true";
+  $("bAudio").setAttribute("aria-pressed", String(on));
+  if (on && !audio) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const len = ctx.sampleRate * 4, buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch); let last = 0;
+      for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.2; }
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 520; lp.Q.value = 0.7;
+    const gain = ctx.createGain(); gain.gain.value = 0;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 260;
+    lfo.connect(lfoG).connect(lp.frequency);
+    src.connect(lp).connect(gain).connect(ctx.destination);
+    src.start(); lfo.start();
+    audio = { ctx, gain };
+  }
+  if (audio) {
+    if (audio.ctx.state === "suspended") audio.ctx.resume();
+    audio.gain.gain.setTargetAtTime(on ? 0.5 : 0, audio.ctx.currentTime, 0.4);
+  }
+});
+
+// grana di pellicola
+(function grain() {
+  const g = $("grain"), x = g.getContext("2d"), img = x.createImageData(160, 160);
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let t = 0;
+  const step = () => {
+    for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+    x.putImageData(img, 0, 0);
+    if (!reduce) setTimeout(step, 90);
+  };
+  g.style.width = g.style.height = "200%"; g.style.imageRendering = "pixelated";
+  step();
+})();
+
+// ---------- ciclo principale ----------
+const clock = new THREE.Clock();
+const fwd = new THREE.Vector3(), tmpV = new THREE.Vector3();
+let hudHidden = true;
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  U.uTime.value += dt;
+  if (room) {
+    // intenzione di movimento
+    let mf = 0, ms = 0;
+    if (keys.has("KeyW") || keys.has("ArrowUp")) mf += 1;
+    if (keys.has("KeyS") || keys.has("ArrowDown")) mf -= 1;
+    if (keys.has("KeyD") || keys.has("ArrowRight")) ms += 1;
+    if (keys.has("KeyA") || keys.has("ArrowLeft")) ms -= 1;
+    mf += -input.jy; ms += input.jx;
+    const run = keys.has("ShiftLeft") || keys.has("ShiftRight") || Math.hypot(input.jx, input.jy) > 0.95;
+    const sp = run ? 2.6 : 1.35;
+    const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+    const tx = (-sy * mf + cy * ms) * sp, tz = (-cy * mf - sy * ms) * sp;
+    const k = 1 - Math.exp(-dt * 9);
+    player.vx += (tx - player.vx) * k; player.vz += (tz - player.vz) * k;
+    const nx = player.x + player.vx * dt, nz = player.z + player.vz * dt;
+    if (free(nx, nz)) { player.x = nx; player.z = nz; }
+    else if (free(nx, player.z)) { player.x = nx; player.vz *= 0.5; }
+    else if (free(player.x, nz)) { player.z = nz; player.vx *= 0.5; }
+    else { player.vx = player.vz = 0; }
+    const speed = Math.hypot(player.vx, player.vz);
+    player.bob += speed * dt * 5.2;
+    camera.position.set(player.x, EYE + Math.sin(player.bob) * 0.025 * Math.min(speed, 1.5), player.z);
+    camera.rotation.set(player.pitch, player.yaw, 0);
+    // la cenere si accumula col tempo
+    U.uAsh.value = Math.min(0.75, U.uAsh.value + dt * 0.004 * (ashLevel + 1));
+    U.uTorch.value += (torchTarget - U.uTorch.value) * (1 - Math.exp(-dt * 6));
+    U.uCamPos.value.copy(camera.position);
+    ground.position.x = player.x; ground.position.z = player.z;
+    dome.position.copy(camera.position);
+    camera.getWorldDirection(fwd); U.uCamDir.value.copy(fwd);
+    const fd = (room.sc.group === "Fuori" ? 0.045 : 0.065) + 0.018 * ashLevel;
+    U.uFogDensity.value = fd; scene.fog.density = fd;
+    // varco: etichetta sopra la colonna di brace, e si passa camminandoci dentro
+    const p = room.portal.position, dp = Math.hypot(player.x - p.x, player.z - p.z);
+    tmpV.set(p.x, 2.75, p.z).project(camera);
+    const tag = $("ptag"), vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.1 && Math.abs(tmpV.y) < 1.1 && dp < 12;
+    tag.hidden = !vis || hudHidden;
+    if (vis) tag.style.transform = `translate(${(tmpV.x * 0.5 + 0.5) * window.innerWidth}px, ${(-tmpV.y * 0.5 + 0.5) * window.innerHeight}px) translate(-50%, -100%)`;
+    if (dp < 0.55 && performance.now() - arrivedAt > 1500) goTo((current + 1) % world.scenes.length);
+    // il foglio: leggibile da vicino
+    const nearDoc = room.doc && Math.hypot(player.x - room.doc.position.x, player.z - room.doc.position.z) < 1.7;
+    $("bRead").hidden = !nearDoc || hudHidden;
+    $("readout").innerHTML = `x <b>${player.x.toFixed(1)}</b> · z <b>${(-player.z).toFixed(1)}</b> m<br>cenere posata <b>${Math.round(U.uAsh.value * 100)}%</b>`;
+  }
+  if (ash) ash.material.uniforms.uPx.value = renderer.getPixelRatio() * window.innerHeight * 0.5;
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+// ---------- avvio ----------
+(async function boot() {
+  try { const v = parseInt(localStorage.getItem("faraona.ash"), 10); if (v >= 0 && v < 3) ashLevel = v; } catch (_) {}
+  $("bAsh").textContent = "Cenere: " + ASH_LEVELS[ashLevel].name;
+  buildAsh(ashLevel);
+  requestAnimationFrame(frame);
+  try {
+    world = await (await fetch("dati/world.json")).json();
+    world.scenes.forEach((s) => { s.tex = "dati/" + s.tex; s.depth = "dati/" + s.depth; if (s.doc) s.doc.tex = "dati/" + s.doc.tex; });
+    const rooms = $("rooms");
+    world.scenes.forEach((sc, i) => {
+      if (i === 0 || world.scenes[i - 1].group !== sc.group) {
+        const l = document.createElement("span"); l.className = "grp"; l.textContent = sc.group; rooms.appendChild(l);
+      }
+      const b = document.createElement("button");
+      b.className = "btn"; b.type = "button"; b.id = "room" + (i + 1);
+      b.textContent = String(i + 1); b.title = sc.label || sc.name;
+      b.addEventListener("click", () => goTo(i));
+      rooms.appendChild(b);
+    });
+    await goTo(0, true);
+    $("load").textContent = `${world.scenes.length} stanze pronte`;
+    $("enter").disabled = false;
+  } catch (err) {
+    $("load").innerHTML = `<span class="err">Non riesco a caricare le stanze (${err.message}). Ricarica la pagina.</span>`;
+  }
+})();
+
+function openDoc() {
+  if (!room || !room.sc.doc) return;
+  $("docImg").src = room.sc.doc.tex;
+  $("docView").hidden = false;
+  if (document.exitPointerLock) document.exitPointerLock();
+  $("docClose").focus();
+}
+$("bRead").addEventListener("click", openDoc);
+$("docClose").addEventListener("click", () => { $("docView").hidden = true; });
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyE" && !$("bRead").hidden) openDoc();
+  if (e.code === "Escape") $("docView").hidden = true;
+});
+
+$("enter").addEventListener("click", () => {
+  $("gate").classList.add("out");
+  $("hud").hidden = false;
+  hudHidden = false;
+  if (window.matchMedia("(pointer: fine)").matches && canvas.requestPointerLock) {
+    try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+  }
+});
+window.__faraona = { player, goTo, U };
+</script>
+
+</body>
+</html>
