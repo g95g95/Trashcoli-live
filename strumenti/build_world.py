@@ -26,7 +26,6 @@ SKY_M = 38.0
 # percorso: fuori -> dentro. pitch = inclinazione nota della macchina (gradi, + verso l'alto),
 # usata se pavimento e verticali non bastano; med = profondità mediana tipica (m) senza pavimento
 ROUTE = [
-    dict(file="arco.jpg", label="L'arco", group="Fuori", pitch=0, med=7.0),
     dict(file="fontana.jpg", label="La fontana", group="Fuori", pitch=-8, med=2.4),
     dict(file="inferriata.jpg", label="L'inferriata", group="Fuori", pitch=28, med=3.2),
     dict(file="muro.jpg", label="Il muro scritto", group="Fuori", pitch=38, med=4.5),
@@ -36,6 +35,7 @@ ROUTE = [
     dict(file="carrozzina.jpg", label="La carrozzina", group="Dentro", pitch=-30, med=3.0),
     dict(file="televisore.jpg", label="Il televisore", group="Dentro", pitch=-12, med=2.2),
     dict(file="brande.jpg", label="Le brande", group="Dentro", pitch=-22, med=3.0),
+    dict(file="arco.jpg", label="L'arco", group="Fuori", pitch=0, med=7.0),   # in fondo: il primo posto è della cattedrale
 ]
 
 

@@ -82,6 +82,8 @@ shot = lambda tex, cam, gain: {"tex": tex, "hfov": HF, "pos": [round(v, 3) for v
                                "rot": [round(v, 4) for v in cam[3:6]], "gain": gain}
 out = {
     "id": 10, "slug": "cattedrale", "label": "Dentro la cattedrale", "group": "Dentro", "kind": "cattedrale",
+    "posto": 1,   # la prima porta del corridoio
+
     "nave": {"w": W, "len": round(Lt, 2), "cornice": round(Hc, 2), "volta": round(rise, 2), "zoccolo": round(Hd, 2),
              "presbiterio": [3.2, round(A[1] - 1.6, 2)],
              "cantoria": {"prof": DL, "piano": round(B_Y - 1.6, 2), "spess": 0.2, "parapetto": round(Hr, 2), "colonne": 1.1}},

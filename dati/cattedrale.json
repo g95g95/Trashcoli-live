@@ -4,6 +4,7 @@
  "label": "Dentro la cattedrale",
  "group": "Dentro",
  "kind": "cattedrale",
+ "posto": 1,
  "nave": {
   "w": 7.0,
   "len": 17.73,

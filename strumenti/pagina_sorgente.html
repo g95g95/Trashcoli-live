@@ -137,7 +137,7 @@ body {
   <div class="card">
     <span class="kicker">Trashcoli · urbex · abbandonato</span>
     <h1>Dentro Faraona</h1>
-    <p>Dieci luoghi ricostruiti dalle fotografie, cinque fuori e cinque dentro, affacciati su un unico corridoio. Ogni porta si apre su una foto: entra, guardati intorno, poi torna nel corridoio e prosegui. L'ultima porta dà su una chiesa intera, ricostruita da due foto scattate ai suoi due capi. Le porte di brace in fondo ti riportano dall'altra parte. Piove cenere.</p>
+    <p>Dieci luoghi ricostruiti dalle fotografie, cinque fuori e cinque dentro, affacciati su un unico corridoio. Ogni porta si apre su una foto: entra, guardati intorno, poi torna nel corridoio e prosegui. La prima porta dà su una chiesa intera, ricostruita da due foto scattate ai suoi due capi. Le porte di brace in fondo ti riportano dall'altra parte. Piove cenere.</p>
     <div class="keys desk">
       <kbd>Clic</kbd><span>cattura il mouse per guardarti intorno</span>
       <kbd>W A S D</kbd><span>cammina · <kbd>Shift</kbd> corri</span>
@@ -322,7 +322,7 @@ const shellMat = (r) => new THREE.ShaderMaterial({
 
 // ---------- il corridoio: intonaco, cementine, luce che esce dalle porte ----------
 const NL = 12;
-const LIGHTS = { uLP: { value: [] }, uLC: { value: [] }, uLD: { value: [] }, uSplit: { value: 0 } };
+const LIGHTS = { uLP: { value: [] }, uLC: { value: [] }, uLD: { value: [] }, uSplits: { value: [1e9, 1e9, 1e9, 1e9] }, uIn0: { value: 0 } };
 for (let i = 0; i < NL; i++) {
   LIGHTS.uLP.value.push(new THREE.Vector3(0, -100, 0));
   LIGHTS.uLC.value.push(new THREE.Vector3());
@@ -335,7 +335,7 @@ const hallMat = new THREE.ShaderMaterial({
     void main() { vN = normal; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
   fragmentShader: NOISE + SHADE + /* glsl */`
     #define NL ${NL}
-    uniform vec3 uLP[NL]; uniform vec3 uLC[NL]; uniform vec3 uLD[NL]; uniform float uSplit;
+    uniform vec3 uLP[NL]; uniform vec3 uLC[NL]; uniform vec3 uLD[NL]; uniform float uSplits[4]; uniform float uIn0;
     varying vec3 vW; varying vec3 vN;
     vec3 lin(vec3 c) { return c * c; }
     // tassellatura esagonale: xy = posizione nella cella, zw = id della cella
@@ -348,7 +348,8 @@ const hallMat = new THREE.ShaderMaterial({
     float hexEdge(vec2 p) { p = abs(p); return 0.5 - max(dot(p, vec2(0.5, 0.8660254)), p.x); }
     void main() {
       vec3 N = normalize(vN);
-      float dentro = smoothstep(uSplit - 0.3, uSplit + 0.3, vW.x);
+      float dentro = uIn0;   // a ogni soglia si passa da fuori a dentro o viceversa
+      for (int i = 0; i < 4; i++) dentro = mix(dentro, 1.0 - dentro, smoothstep(uSplits[i] - 0.3, uSplits[i] + 0.3, vW.x));
       vec3 alb;
       vec3 inA = vec3(0.0), outA = vec3(0.0);
       if (N.y > 0.5) {
@@ -931,12 +932,14 @@ async function loadCathedral(sc) {
 
 // ---------- il percorso: un corridoio con le stanze alternate ai due lati ----------
 function buildWorld() {
-  const split = world.scenes.findIndex((s) => s.group === "Dentro");
+  // una soglia a ogni passaggio tra luoghi di fuori e luoghi di dentro
+  const gs = rooms.map((r) => r.sc.group);
+  const cuts = gs.flatMap((g, k) => (k > 0 && g !== gs[k - 1] ? [k] : []));
   const reach = [-Infinity, -Infinity];   // fin dove arrivano i gusci già messi, per lato
   rooms.forEach((r, k) => {
     const side = k % 2 === 0 ? -1 : 1;    // -1: porta a nord (la foto guarda verso -z), +1: a sud
     const lo = side < 0 ? r.box.min.x : -r.box.max.x, hi = side < 0 ? r.box.max.x : -r.box.min.x;
-    let X = k === 0 ? 0 : rooms[k - 1].door.x + STEP + (k === split ? THRESH_GAP : 0);
+    let X = k === 0 ? 0 : rooms[k - 1].door.x + STEP + (cuts.includes(k) ? THRESH_GAP : 0);
     const s = side < 0 ? 0 : 1;
     X = Math.max(X, reach[s] + 0.4 - lo);
     reach[s] = X + hi;
@@ -951,9 +954,10 @@ function buildWorld() {
     scene.add(r.group);
   });
   const xs = rooms[0].door.x - END_GAP, xe = rooms[rooms.length - 1].door.x + END_GAP;
-  const xt = split > 0 ? (rooms[split - 1].door.x + rooms[split].door.x) / 2 : -1e9;
-  W = { xs, xe, xt };
-  LIGHTS.uSplit.value = xt;
+  const xts = cuts.map((k) => (rooms[k - 1].door.x + rooms[k].door.x) / 2);
+  W = { xs, xe, xts, groups: [gs[0], ...cuts.map((k) => gs[k])] };
+  LIGHTS.uSplits.value = [0, 1, 2, 3].map((i) => (i < xts.length ? xts[i] : 1e9));
+  LIGHTS.uIn0.value = gs[0] === "Dentro" ? 1 : 0;
 
   const Q = [], doorsN = [], doorsS = [];
   for (const r of rooms) {
@@ -972,7 +976,7 @@ function buildWorld() {
   for (const [x0, x1] of [[xs - WALL, xs], [xe, xe + WALL]]) {
     rz(Q, -DOOR_W / 2, x0, x1, 0, DOOR_H, 1); rz(Q, DOOR_W / 2, x0, x1, 0, DOOR_H, -1); ry(Q, DOOR_H, x0, x1, -DOOR_W / 2, DOOR_W / 2, -1);
   }
-  if (split > 0) {
+  for (const xt of xts) {
     const a = xt - WALL / 2, b = xt + WALL / 2, gap = [[-TW / 2, TW / 2, TH]];
     wallX(Q, a, -HW, HW, CH, gap, -1); wallX(Q, b, -HW, HW, CH, gap, 1);
     rz(Q, -TW / 2, a, b, 0, TH, 1); rz(Q, TW / 2, a, b, 0, TH, -1); ry(Q, TH, a, b, -TW / 2, TW / 2, -1);
@@ -998,10 +1002,12 @@ function buildWorld() {
   };
   tags = rooms.map((r, k) => mk(new THREE.Vector3(r.door.x, DOOR_H + 0.35, r.side * HW), `${k + 1} · ${r.sc.label}`, "Corridoio"));
   tags.push(mk(new THREE.Vector3(xs, DOOR_H + 0.35, 0), "Dall'altra parte", null));
-  tags.push(mk(new THREE.Vector3(xe, DOOR_H + 0.35, 0), "Di nuovo all'arco", null));
-  if (split > 0) tags.push(mk(new THREE.Vector3(xt, TH + 0.3, 0), () => (player.x < xt ? "Dentro" : "Fuori"), null));
+  tags.push(mk(new THREE.Vector3(xe, DOOR_H + 0.35, 0), "Di nuovo all'inizio", null));
+  xts.forEach((xt, i) => tags.push(mk(new THREE.Vector3(xt, TH + 0.3, 0), () => W.groups[player.x < xt ? i + 1 : i], null)));
 }
 let tags = [];
+// fuori o dentro, per il tratto di corridoio in cui cade x
+const groupAt = (x) => W.groups[W.xts.filter((t) => x > t).length];
 
 // ---------- calpestabilità ----------
 // coordinate della stanza da quelle del mondo
@@ -1012,7 +1018,7 @@ function inRoom(r, x, z) {
 }
 // l'altezza del pavimento sotto (x, z), oppure null se lì non si passa
 function ground(x, z) {
-  if (x > W.xs && x < W.xe && Math.abs(z) < HW) return Math.abs(x - W.xt) < WALL / 2 && Math.abs(z) > TW / 2 ? null : 0;
+  if (x > W.xs && x < W.xe && Math.abs(z) < HW) return W.xts.some((t) => Math.abs(x - t) < WALL / 2) && Math.abs(z) > TW / 2 ? null : 0;
   if (Math.abs(z) < DOOR_W / 2 && ((x > W.xs - WALL && x <= W.xs) || (x >= W.xe && x < W.xe + WALL))) return 0;   // nella porta di brace
   for (const r of rooms) {
     const [cx, cz] = toRoom(r, x, z);
@@ -1242,7 +1248,7 @@ function frame() {
     U.uTorch.value += (torchTarget - U.uTorch.value) * (1 - Math.exp(-dt * 6));
     U.uCamPos.value.copy(camera.position);
     camera.getWorldDirection(fwd); U.uCamDir.value.copy(fwd);
-    const fd = where && where.fog ? where.fog * (1 + 0.4 * ashLevel) : (player.x < W.xt ? 0.05 : 0.065) + 0.018 * ashLevel;
+    const fd = where && where.fog ? where.fog * (1 + 0.4 * ashLevel) : (groupAt(player.x) === "Fuori" ? 0.05 : 0.065) + 0.018 * ashLevel;
     U.uFogDensity.value += (fd - U.uFogDensity.value) * (1 - Math.exp(-dt * 1.5)); scene.fog.density = U.uFogDensity.value;
     const fl = 0.85 + 0.15 * Math.sin(U.uTime.value * 7.0) * Math.sin(U.uTime.value * 2.3);
     LIGHTS.uLC.value[NL - 2].set(1.0, 0.42, 0.15).multiplyScalar(1.6 * fl);
@@ -1250,12 +1256,12 @@ function frame() {
 
     // dove sono: in una stanza o nel corridoio
     const here = rooms.find((r) => inRoom(r, player.x, player.z)) || null;
+    const hi = rooms.indexOf(here);
+    const label = here ? `${here.sc.group} · ${hi + 1} di ${rooms.length} · ${here.sc.label}` : `${groupAt(player.x)} · il corridoio`;
+    if (label !== $("roomName").textContent) $("roomName").textContent = label;   // anche passando una soglia
     if (here !== where) {
       where = here;
-      const k = rooms.indexOf(here);
-      $("roomName").textContent = here ? `${here.sc.group} · ${k + 1} di ${rooms.length} · ${here.sc.label}`
-        : `${player.x < W.xt ? "Fuori" : "Dentro"} · il corridoio`;
-      document.querySelectorAll(".rooms .btn").forEach((b, j) => b.setAttribute("aria-current", j === k ? "true" : "false"));
+      document.querySelectorAll(".rooms .btn").forEach((b, j) => b.setAttribute("aria-current", j === hi ? "true" : "false"));
     }
     // si disegnano solo le stanze in cui sei o di cui vedi la porta; quelle lontane più semplici
     frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
@@ -1298,7 +1304,7 @@ function frame() {
   try {
     world = await (await fetch("world.json")).json();
     const cat = await (await fetch("cattedrale.json")).json();
-    world.scenes.push(cat);
+    world.scenes.splice(cat.posto - 1, 0, cat);
     const roomsEl = $("rooms");
     world.scenes.forEach((sc, i) => {
       if (i === 0 || world.scenes[i - 1].group !== sc.group) {

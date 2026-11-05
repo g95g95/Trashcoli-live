@@ -18,7 +18,7 @@ for sc in world["scenes"]:
 cat = json.loads((data / "cattedrale.json").read_text())
 for f in cat["foto"]:
     f["tex"] = data_uri(data / f["tex"])
-world["scenes"].append(cat)
+world["scenes"].insert(cat["posto"] - 1, cat)
 
 html = web.read_text()
 # niente CDN: three.js incorporato come script classico (definisce la variabile globale THREE)
@@ -27,7 +27,7 @@ rep2 = ("<script>\n" + three.read_text() + "\n</script>\n<script>\nconst WORLD =
         + json.dumps(world, separators=(",", ":")) + ";\n(function () {\n")
 html, n2 = re.subn(r'<script type="module">\s*import \* as THREE from "three";', lambda m: rep2, html)
 html, n3 = re.subn(r'world = await \(await fetch\("world\.json"\)\)\.json\(\);\s*'
-                   r'const cat = await \(await fetch\("cattedrale\.json"\)\)\.json\(\);\s*world\.scenes\.push\(cat\);',
+                   r'const cat = await \(await fetch\("cattedrale\.json"\)\)\.json\(\);\s*world\.scenes\.splice\(cat\.posto - 1, 0, cat\);',
                    "world = WORLD;", html)
 html, n4 = re.subn(r"window\.__faraona = \{ player, goTo, U \};\s*</script>",
                    lambda m: "window.__faraona = { player, goTo, U };\n})();\n</script>", html)
