@@ -64,7 +64,7 @@ body { margin: 0; background: var(--notte); color: var(--osso); font-family: var
 .invito { display: none; }
 
 /* pergamena */
-.pergamena { position: relative; z-index: 2; padding-bottom: 18vh; overflow-x: hidden; overflow-x: clip; }
+.pergamena { position: relative; z-index: 2; padding-bottom: 18vh; }
 .rullo { position: relative; height: var(--H); z-index: 3; pointer-events: none; }
 .asta { position: absolute; left: 0; right: 0; margin: auto; top: 17%; bottom: 17%; width: min(var(--W) + 2 * var(--pomo) + 12px, 100% - 2px); border-radius: 999px;
   background: linear-gradient(#0f0805, #4c3019 24%, #8a6238 40%, #4a2d17 62%, #120a05); box-shadow: 0 6px 14px rgba(0, 0, 0, .6); }
@@ -121,47 +121,47 @@ body { margin: 0; background: var(--notte); color: var(--osso); font-family: var
 }
 ::selection { background: rgba(226, 101, 46, .32); color: #1a0e06; }
 
-.cenere, .binario, .alone, .ombra, .striscia { display: none; }
+.cenere, .ombra { display: none; }
 
-/* modo .scorre: tutto fisso, lo scorrimento del documento muove la carta tra i rulli */
-.scorre body { overflow-x: hidden; }
-.scorre .apertura { position: fixed; inset: 0; min-height: 0; pointer-events: none; will-change: opacity, transform; }
-.scorre .pergamena { position: fixed; inset: 0; padding: 0; overflow: hidden; pointer-events: none; }
-.scorre .piano, .scorre .striscia { display: block; position: absolute; top: 0; left: 0; right: 0; height: 0; margin: 0; overflow: hidden; will-change: transform; }
-.scorre .carta { position: absolute; top: 0; left: 0; right: 0; transform-origin: 0 0; will-change: transform; }
-.scorre .piano .carta { pointer-events: auto; }
-.scorre .rullo { position: absolute; top: 0; left: 0; right: 0; will-change: transform; }
-.scorre .rotolo, .scorre .giro { will-change: transform; }
-.scorre .alone { display: block; position: absolute; top: 0; left: 0; right: 0; margin: auto; height: 100px; width: calc(var(--W) + 120px); transform-origin: 50% 0; transform: scaleY(0);
+/* modo .scorre: la carta scorre col documento (scorrimento nativo); i rulli sono sticky, quindi la pergamena
+   si apre dal basso, scorre tra i rulli fermi e si chiude in alto senza che il JS debba inseguire lo scorrimento */
+.scorre .apertura { position: fixed; inset: 0; min-height: 0; pointer-events: none; }
+.scorre .pergamena { padding: calc(100vh - 2 * var(--H)) 0 calc(160vh - 2 * var(--H)); padding-top: calc(100svh - 2 * var(--H)); }
+.scorre .rullo.su { position: sticky; top: 0; }
+.scorre .rullo.giu { position: sticky; top: var(--H); bottom: 0; }
+.scorre .piano::before { content: ""; position: absolute; inset: 0; margin: 0 auto; width: min(var(--W) + 120px, 100%); z-index: -1;
   background: linear-gradient(90deg, transparent, rgba(4, 3, 2, .55) 60px, rgba(4, 3, 2, .55) calc(100% - 60px), transparent); }
-.scorre .ombra { display: block; position: absolute; top: 0; left: 0; right: 0; margin: auto; width: calc(var(--W) + 2px); height: 100px; transform: scaleY(0); z-index: 2; }
-.ombra.su { transform-origin: 50% 0;
+/* l'ombra dove la carta si avvolge sul rullo */
+.scorre .ombra { display: block; position: absolute; left: 0; right: 0; margin: auto; width: calc(var(--W) + 2px); height: var(--R, 90px); opacity: 0; }
+.ombra.su { top: 100%;
   background: linear-gradient(to top, rgba(26, 12, 4, 0), rgba(255, 244, 222, .1) 14%, rgba(26, 12, 4, .1) 30%, rgba(26, 12, 4, .26) 48%, rgba(26, 12, 4, .46) 64%, rgba(22, 10, 3, .66) 78%, rgba(18, 8, 2, .86) 90%, rgba(10, 4, 1, .97)); }
-.ombra.giu { transform-origin: 50% 100%;
+.ombra.giu { bottom: 100%;
   background: linear-gradient(rgba(26, 12, 4, 0), rgba(255, 244, 222, .1) 14%, rgba(26, 12, 4, .1) 30%, rgba(26, 12, 4, .26) 48%, rgba(26, 12, 4, .46) 64%, rgba(22, 10, 3, .66) 78%, rgba(18, 8, 2, .86) 90%, rgba(10, 4, 1, .97)); }
 .scorre .cenere { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
-.scorre .binario { display: block; height: calc(var(--corsa, 0px) + 100vh); }
 .scorre .zoom i { will-change: opacity, transform; }
-.clone { pointer-events: none; user-select: none; -webkit-user-select: none; }
-.clone *, .clone *::before, .clone *::after { animation: none !important; }
-.clone .brace { opacity: .8; }
 
 /* inchiostro: il paragrafo affiora sfocato e si asciuga nella carta */
 .scorre .testo p { opacity: 0; filter: blur(4px); color: #7a4a26; }
 .scorre .testo p.inchiostro { opacity: 1; filter: blur(0); color: var(--inchiostro);
   transition: opacity 1.5s cubic-bezier(.3, .6, .3, 1), filter 2.2s cubic-bezier(.2, .7, .2, 1), color 3.2s ease-out; }
 .scorre .testo .firma.inchiostro { color: #4a2c18; }
+/* sul telefono niente sfocatura né cambio di colore durante lo scorrimento: solo opacità e spostamento, che non ridisegnano */
+@media (pointer: coarse) {
+  .scorre .testo p { filter: none; color: var(--inchiostro); transform: translateY(.5em); }
+  .scorre .testo .firma { color: #4a2c18; }
+  .scorre .testo p.inchiostro { transform: none; transition: opacity 1.4s cubic-bezier(.3, .6, .3, 1), transform 1.8s cubic-bezier(.2, .7, .2, 1); }
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .sfondo { animation: emergi 4.2s cubic-bezier(.3, .1, .2, 1) both; }
   .zoom { animation: respira 46s ease-in-out 4s infinite alternate both; }
   .apertura h1 { animation: titolo 2.8s cubic-bezier(.2, .6, .2, 1) 1.3s both; }
   .scorre .rullo { animation: appare 1.6s ease-out 2.4s both; }
-  .scorre .invito { display: block; grid-row: 3; align-self: end; margin-bottom: calc(20vh + 2.6rem); width: 1px; height: 46px; background: linear-gradient(transparent, rgba(236, 230, 218, .7)); opacity: 0;
+  .scorre .invito { display: block; grid-row: 3; align-self: end; margin-bottom: calc(2 * var(--H) + 1.6rem); width: 1px; height: 46px; background: linear-gradient(transparent, rgba(236, 230, 218, .7)); opacity: 0;
     animation: appare 1.2s ease-out 3.6s forwards, invito 2.6s ease-in-out 4.8s infinite; transform-origin: 50% 0; }
   .brace.l { animation: guizzo 3.7s ease-in-out infinite; }
   .brace.r { animation: guizzo 4.6s ease-in-out -1.3s infinite; }
-  .scorre .entraci.arde { animation: arde 3s cubic-bezier(.2, .6, .2, 1) both, cova 3.4s ease-in-out 3s infinite alternate; }
+  .scorre .entraci.arde { animation: arde 3s cubic-bezier(.2, .6, .2, 1) both, cova 3.4s ease-in-out 3s 4 alternate; }
   .scorre .chiama .brace.l { animation: divampa 3.4s ease-out, guizzo 3.7s ease-in-out 3.4s infinite; }
   .scorre .chiama .brace.r { animation: divampa 3.4s ease-out .15s, guizzo 4.6s ease-in-out 3.55s infinite; }
 }
@@ -193,8 +193,7 @@ body { margin: 0; background: var(--notte); color: var(--osso); font-family: var
 </header>
 
 <main class="pergamena">
-  <i class="alone" aria-hidden="true"></i>
-  <div class="rullo su" aria-hidden="true"><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
+  <div class="rullo su" aria-hidden="true"><i class="ombra su"></i><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
   <div class="piano">
     <article class="carta" id="carta" aria-label="Manifesto dei Trashcoli">
       <div class="foglio">
@@ -224,12 +223,10 @@ body { margin: 0; background: var(--notte); color: var(--osso); font-family: var
       <i class="brace l" aria-hidden="true"></i><i class="brace r" aria-hidden="true"></i>
     </article>
   </div>
-  <div class="rullo giu" aria-hidden="true"><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
-  <i class="ombra su" aria-hidden="true"></i><i class="ombra giu" aria-hidden="true"></i>
+  <div class="rullo giu" aria-hidden="true"><i class="ombra giu"></i><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
 </main>
 
 <canvas class="cenere" aria-hidden="true"></canvas>
-<div class="binario" aria-hidden="true"></div>
 
 <script>
 (() => {
@@ -244,7 +241,6 @@ const urlDi = (c, tipo, q) => new Promise((ok, ko) => {
 });
 const limita = (x, a, b) => Math.min(b, Math.max(a, x));
 const liscio = (a, b, x) => { const t = limita((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-const pixel = (x) => Math.round(x * dpr) / dpr;
 
 // ---- carta: texture da filtri SVG, rasterizzata una volta sola in un tassello ripetibile
 const T = 1024;
@@ -383,90 +379,37 @@ texture().then((u) => root.style.setProperty('--tex', `url(${u})`));
 bordi();
 if (fermo) { sfondo(); return; }
 
-// ---- da qui solo il modo animato
-const carta = $('#carta'), pergamena = $('.pergamena'), piano = $('.piano'), apertura = $('.apertura');
+// ---- da qui solo il modo animato. Il JS tocca solo cose in cui un fotogramma di ritardo non si vede:
+// opacità, spessore dei rotoli, sfondo. La carta e i rulli li muove il browser.
+const carta = $('#carta'), pergamena = $('.pergamena'), apertura = $('.apertura');
 const rulli = [$('.rullo.su'), $('.rullo.giu')];
 const rotoli = rulli.map((r) => $('.rotolo', r)), giri = rulli.map((r) => $('.giro', r));
-const ombre = [$('.ombra.su'), $('.ombra.giu')], alone = $('.alone');
+const ombre = [$('.ombra.su'), $('.ombra.giu')];
 const [s0, s1, s2] = document.querySelectorAll('.zoom i'), buio = $('.buio');
-const binario = $('.binario');
-
-// Le strisce sono copie della carta, schiacciate come la proiezione di un cilindro: la carta si avvolge sul rullo.
-const K = 5, CURVA = Math.PI / 2 - 1;
-const TH = Array.from({ length: K + 1 }, (_, k) => (k * Math.PI) / (2 * K));
-const SEN = TH.map(Math.sin);
-const copie = [];
-const fasce = [-1, 1].map((dir) => Array.from({ length: K }, (_, k) => {
-  const clip = document.createElement('div');
-  clip.className = 'striscia';
-  const c = carta.cloneNode(true);
-  c.removeAttribute('id'); c.removeAttribute('aria-label'); c.classList.add('clone');
-  c.setAttribute('aria-hidden', 'true'); c.inert = true;
-  clip.append(c); pergamena.insertBefore(clip, ombre[0]);
-  copie.push(c);
-  return { clip, carta: c, dir, sY: (SEN[k + 1] - SEN[k]) / (TH[k + 1] - TH[k]), alt: -1 };
-}));
 const paragrafi = [...carta.querySelectorAll('.testo p')];
-const paragrafiCopie = copie.map((c) => [...c.querySelectorAll('.testo p')]);
 
 const g = {};
-let vhStabile = 0, vwPrima = 0;
 function misura() {
-  const vw = root.clientWidth, vh = innerHeight;
-  // l'altezza cambia quando la barra del browser sul telefono si chiude: si ignora, se no la carta salta
-  if (vw !== vwPrima || !vhStabile || Math.abs(vh - vhStabile) > 160) { vhStabile = vh; vwPrima = vw; }
-  g.H = vw < 600 ? 24 : 30;
-  g.R = Math.round(limita(vhStabile * 0.11, 44, 96));
-  g.topFix = Math.round(limita(vhStabile * 0.018, 8, 18));
-  g.L = carta.offsetHeight;
-  g.yC = Math.round(vhStabile * 0.8 - g.H);
-  g.y0 = g.yC + g.H;
-  g.chiusa = g.y0 + g.L - (g.topFix + g.H);
-  g.corsa = g.chiusa + Math.round(vhStabile * 0.6);
+  g.H = root.clientWidth < 600 ? 24 : 30;
   root.style.setProperty('--H', g.H + 'px');
-  root.style.setProperty('--corsa', g.corsa + 'px');
+  g.R = Math.round(limita(innerHeight * 0.11, 44, 96));
+  root.style.setProperty('--R', g.R + 'px');
+  g.su = pergamena.offsetTop + parseFloat(getComputedStyle(pergamena).paddingTop);   // rullo alto, prima di fermarsi
+  g.L = carta.offsetHeight;
+  g.corsa = Math.max(1, root.scrollHeight - innerHeight);
   sporco = true;
 }
 
-function fascia(strisce, y, u, r) {
-  for (let k = 0; k < K; k++) {
-    const st = strisce[k];
-    const a = pixel(y + st.dir * r * SEN[k]), z = pixel(y + st.dir * r * SEN[k + 1]);
-    const alto = Math.min(a, z), alt = Math.abs(z - a);
-    if (alt !== st.alt) { st.clip.style.height = alt + 'px'; st.alt = alt; }
-    if (!alt) continue;
-    const uk = u + st.dir * r * TH[k];
-    st.clip.style.transform = `translate3d(0,${alto}px,0)`;
-    st.carta.style.transform = `translate3d(0,${a - alto - st.sY * uk}px,0) scaleY(${st.sY})`;
-  }
-}
-
-let altPiano = -1;
+// scrive uno stile solo se cambia: lo sfondo è a tutto schermo, inutile ricomporlo per niente
+const metti = (el, k, v) => { const c = (el.scritto ||= {}); if (c[k] !== v) { el.style[k] = v; c[k] = v; } };
 function disponi(s, vh) {
-  const Ptop = g.y0 - s, Pbot = Ptop + g.L;
-  const suY = Math.max(g.topFix, g.yC - s), wTop = suY + g.H;
-  const giuFix = vh - g.topFix - g.H;
-  const giuApre = Math.min(giuFix, g.y0 + (s * (giuFix - g.y0)) / (g.yC - g.topFix));
-  const wBot = Math.max(wTop, Math.min(giuApre, Pbot));
-  const luce = wBot - wTop;
-  let rT = limita((wTop - Ptop) / CURVA, 0, g.R), rB = limita((Pbot - wBot) / CURVA, 0, g.R);
-  if (rT + rB > luce) { const f = luce / (rT + rB); rT *= f; rB *= f; }
-  const yS = pixel(wTop + rT), yB = pixel(wBot - rB);
-
-  piano.style.transform = `translate3d(0,${yS}px,0)`;
-  const ap = Math.max(0, yB - yS);
-  if (ap !== altPiano) { piano.style.height = ap + 'px'; altPiano = ap; }
-  carta.style.transform = `translate3d(0,${pixel(Ptop - yS)}px,0)`;
-  fascia(fasce[0], yS, yS - Ptop, rT);
-  fascia(fasce[1], yB, yB - Ptop, rB);
-  ombre[0].style.transform = `translate3d(0,${wTop}px,0) scaleY(${rT / 100})`;
-  ombre[1].style.transform = `translate3d(0,${wBot - 100}px,0) scaleY(${rB / 100})`;
-  alone.style.transform = `translate3d(0,${wTop}px,0) scaleY(${luce / 100})`;
-
-  rulli[0].style.transform = `translate3d(0,${suY}px,0)`;
-  rulli[1].style.transform = `translate3d(0,${wBot}px,0)`;
+  // le stesse posizioni che il browser dà ai rulli sticky
+  const suY = Math.max(0, g.su - s), giuY = limita(g.su + g.L - s, g.H, vh - g.H);
+  const luce = giuY - suY - g.H;
+  const avvolta = limita(s - g.su, 0, g.L), resta = limita(g.su + g.L - s - (vh - g.H), 0, g.L);
+  ombre[0].style.opacity = liscio(0, g.R, avvolta) * liscio(0, 2 * g.R, luce);
+  ombre[1].style.opacity = liscio(0, g.R, resta) * liscio(0, 2 * g.R, luce);
   // il rotolo ingrossa con la carta avvolta (sezione di una spirale: raggio come radice della lunghezza)
-  const avvolta = limita(wTop - Ptop, 0, g.L), resta = limita(Pbot - wBot, 0, g.L);
   rotoli[0].style.transform = `scaleY(${Math.sqrt(1 + (1.1 * avvolta) / g.L)})`;
   rotoli[1].style.transform = `scaleY(${Math.sqrt(1 + (1.1 * resta) / g.L)})`;
   const giro = (s * 0.6) % 512;
@@ -475,14 +418,12 @@ function disponi(s, vh) {
 
   const p = limita(s / g.corsa, 0, 1);
   // ci si avvicina al varco mentre si legge, poi si torna indietro mentre la pergamena si chiude
-  const z = `scale(${1 + 0.32 * liscio(0.03, 0.45, p) * (1 - liscio(0.78, 1, p))})`;
-  s0.style.transform = s1.style.transform = s2.style.transform = z;
-  s1.style.opacity = liscio(0.5, 0.93, p);
-  s2.style.opacity = liscio(0.86, 1, p);
-  buio.style.opacity = 0.3 * liscio(0, 0.1, p) * (1 - liscio(0.8, 0.97, p));
-  const via = liscio(0, vhStabile * 0.42, s);
-  apertura.style.opacity = 1 - via;
-  apertura.style.transform = `translate3d(0,${-s * 0.3}px,0)`;
+  const z = `scale(${(1 + 0.32 * liscio(0.03, 0.45, p) * (1 - liscio(0.78, 1, p))).toFixed(4)})`;
+  for (const l of [s0, s1, s2]) metti(l, 'transform', z);
+  metti(s1, 'opacity', liscio(0.5, 0.93, p).toFixed(3));
+  metti(s2, 'opacity', liscio(0.86, 1, p).toFixed(3));
+  metti(buio, 'opacity', (0.3 * liscio(0, 0.1, p) * (1 - liscio(0.8, 0.97, p))).toFixed(3));
+  metti(apertura, 'opacity', (1 - liscio(0, vh * 0.42, s)).toFixed(3));
 }
 
 // ---- cenere: poche scaglie su una tela a risoluzione ridotta
@@ -557,9 +498,7 @@ function cenere(c) {
 const vede = new IntersectionObserver((voci) => {
   for (const v of voci) {
     if (!v.isIntersecting) continue;
-    const i = paragrafi.indexOf(v.target);
     v.target.classList.add('inchiostro');
-    for (const ps of paragrafiCopie) ps[i].classList.add('inchiostro');
     vede.unobserve(v.target);
   }
 }, { rootMargin: '0px 0px -12% 0px' });
