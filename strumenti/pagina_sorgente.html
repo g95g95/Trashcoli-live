@@ -137,12 +137,12 @@ body {
   <div class="card">
     <span class="kicker">Trashcoli · urbex · abbandonato</span>
     <h1>Dentro Faraona</h1>
-    <p>Nove luoghi ricostruiti dalle fotografie, cinque fuori e quattro dentro, affacciati su un unico corridoio. Ogni porta si apre su una foto: entra, guardati intorno, poi torna nel corridoio e prosegui. Le porte di brace in fondo ti riportano dall'altra parte. Piove cenere.</p>
+    <p>Dieci luoghi ricostruiti dalle fotografie, cinque fuori e cinque dentro, affacciati su un unico corridoio. Ogni porta si apre su una foto: entra, guardati intorno, poi torna nel corridoio e prosegui. L'ultima porta dà su una chiesa intera, ricostruita da due foto scattate ai suoi due capi. Le porte di brace in fondo ti riportano dall'altra parte. Piove cenere.</p>
     <div class="keys desk">
       <kbd>Clic</kbd><span>cattura il mouse per guardarti intorno</span>
       <kbd>W A S D</kbd><span>cammina · <kbd>Shift</kbd> corri</span>
       <kbd>F</kbd><span>torcia · <kbd>E</kbd> leggi</span>
-      <kbd>1–9</kbd><span>salta a un luogo · <kbd>Esc</kbd> libera il mouse</span>
+      <kbd>1–9, 0</kbd><span>salta a un luogo · <kbd>Esc</kbd> libera il mouse</span>
     </div>
     <div class="keys touch">
       <kbd>Pollice sinistro</kbd><span>trascina per camminare</span>
@@ -674,17 +674,22 @@ function buildRoom(sc, D, tex) {
   r.shell = new THREE.Mesh(quadsGeo(Q), shellMat(r));
   r.shell.renderOrder = 1;   // dopo il rilievo: quello che copre non si calcola
 
-  // colore medio della foto: è la luce che esce dalla porta nel corridoio
-  const cv = document.createElement("canvas"); cv.width = cv.height = 32;
-  const cx2 = cv.getContext("2d", { willReadFrequently: true }); cx2.imageSmoothingQuality = "high"; cx2.drawImage(tex.image, 0, 0, 32, 32);
-  const px = cx2.getImageData(0, 0, 32, 32).data, avg = [0, 0, 0];
-  for (let i = 0; i < 1024; i++) for (let k = 0; k < 3; k++) avg[k] += Math.pow(px[i * 4 + k] / 255, 2.2) / 1024;
-  const top = Math.max(...avg, 1e-3);
-  r.glow = new THREE.Vector3(avg[0] / top, avg[1] / top, avg[2] / top);
+  r.glow = glowOf(tex.image);
   return r;
 }
 
+// colore medio della foto: è la luce che esce dalla porta nel corridoio
+function glowOf(img) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 32;
+  const cx2 = cv.getContext("2d", { willReadFrequently: true }); cx2.imageSmoothingQuality = "high"; cx2.drawImage(img, 0, 0, 32, 32);
+  const px = cx2.getImageData(0, 0, 32, 32).data, avg = [0, 0, 0];
+  for (let i = 0; i < 1024; i++) for (let k = 0; k < 3; k++) avg[k] += Math.pow(px[i * 4 + k] / 255, 2.2) / 1024;
+  const top = Math.max(...avg, 1e-3);
+  return new THREE.Vector3(avg[0] / top, avg[1] / top, avg[2] / top);
+}
+
 async function loadRoom(sc) {
+  if (sc.kind === "cattedrale") return loadCathedral(sc);
   const [D, tex] = await Promise.all([
     loadDepth(sc.depth),
     new Promise((res, rej) => texLoader.load(sc.tex, res, undefined, rej)),
@@ -713,6 +718,215 @@ async function loadRoom(sc) {
     r.doc = m; r.group.add(m);
   }
   return r;
+}
+
+// ---------- la cattedrale: una navata vera, dipinta dalle sue due foto ----------
+// Le due foto guardano la stessa chiesa dai due capi: dal presbiterio verso la cantoria e dalla cantoria verso l'altare.
+// Ogni punto della navata prende il colore dalle foto che lo vedono davvero (per ogni foto una mappa delle distanze
+// toglie quello che sta dietro le panche), e pesa di più la foto scattata dalla direzione più vicina alla tua.
+// Dal punto di ripresa vedi quindi la foto esatta; altrove le due si passano il testimone.
+const CAT_FAR = 40;
+const catDepthMat = new THREE.ShaderMaterial({
+  uniforms: { uC: { value: new THREE.Vector3() } }, side: THREE.DoubleSide,
+  vertexShader: /* glsl */`
+    varying vec3 vP;
+    void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */`
+    #include <packing>
+    uniform vec3 uC; varying vec3 vP;
+    void main() { gl_FragColor = packDepthToRGBA(min(length(vP - uC) / ${CAT_FAR}.0, 0.999)); }`,
+});
+const catMat = (u, kind, veil = false) => new THREE.ShaderMaterial({
+  uniforms: { ...U, ...u, uKind: { value: kind } },
+  defines: veil ? { VEIL: 1 } : {}, transparent: veil, depthWrite: !veil,
+  vertexShader: /* glsl */`
+    varying vec3 vP; varying vec3 vW; varying vec3 vN;
+    void main() {
+      vP = position; vN = normal;
+      vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz;
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: NOISE + SHADE + /* glsl */`
+    #include <packing>
+    uniform sampler2D uPh0, uPh1, uDp0, uDp1; uniform mat3 uM0, uM1; uniform vec3 uC0, uC1, uEye;
+    uniform vec2 uK0, uK1, uGain; uniform float uKind, uZoc;
+    varying vec3 vP; varying vec3 vW; varying vec3 vN;
+    vec3 lin(vec3 c) { return c * c; }
+    // dove cade il punto nella foto e quanto conta: dentro l'inquadratura, non nascosto, non di taglio, visto come lo vedi tu
+    float weight(mat3 M, vec3 C, vec2 K, sampler2D dp, vec3 N, out vec2 uv) {
+      vec3 d = vP - C, c = M * d;
+      uv = 0.5 + K * c.xy / max(-c.z, 0.05);
+      vec2 e = min(uv, 1.0 - uv) * vec2(1280.0, 960.0);
+      float inF = smoothstep(0.0, 30.0, min(e.x, e.y)) * step(0.05, -c.z);
+      float dist = length(d); vec3 b = d / dist;
+      float seen = unpackRGBAToDepth(texture2D(dp, clamp(uv, 0.0, 1.0))) * ${CAT_FAR}.0;
+      float vis = 1.0 - smoothstep(0.05 + 0.012 * dist, 0.12 + 0.03 * dist, dist - seen);
+      float cosI = -dot(N, b);   // le superfici viste di taglio sono foto stirata: valgono meno
+      float face = smoothstep(0.02, 0.2, cosI) * clamp(cosI, 0.0, 1.0);
+      float ang = acos(clamp(dot(normalize(vP - uEye), b), -1.0, 1.0));
+      return inF * vis * face / (0.01 + ang * ang);
+    }
+    void main() {
+      vec3 N = normalize(vN);
+      vec2 uv0, uv1;
+      float w0 = weight(uM0, uC0, uK0, uDp0, N, uv0), w1 = weight(uM1, uC1, uK1, uDp1, N, uv1);
+      vec3 c0 = texture2D(uPh0, uv0).rgb * uGain.x, c1 = texture2D(uPh1, uv1).rgb * uGain.y;
+      // dove nessuna foto arriva: intonaco sopra lo zoccolo scuro, pavimento, legno, volta, macerie
+      vec2 q = abs(N.y) > 0.5 ? vP.xz : (abs(N.x) > 0.5 ? vP.zy : vP.xy);
+      float st = fbm(q * 0.8);
+      vec3 base;
+      if (uKind < 0.5) base = vP.y < uZoc ? lin(vec3(0.12, 0.1, 0.09)) * (0.8 + 0.4 * st) : mix(lin(vec3(0.26, 0.19, 0.14)), lin(vec3(0.36, 0.28, 0.2)), st);
+      else if (uKind < 1.5) base = mix(lin(vec3(0.26, 0.25, 0.23)), lin(vec3(0.36, 0.34, 0.31)), fbm(vP.xz * 1.7));
+      else if (uKind < 2.5) base = lin(vec3(0.2, 0.15, 0.11)) * (0.7 + 0.5 * n2(q * vec2(1.5, 18.0)));
+      else if (uKind < 3.5) base = mix(lin(vec3(0.11, 0.1, 0.09)), lin(vec3(0.19, 0.16, 0.13)), st);
+      else base = mix(lin(vec3(0.32, 0.3, 0.27)), lin(vec3(0.46, 0.43, 0.39)), fbm(vP.xz * 5.0));
+      base *= 0.5 * mix(1.0, 0.4, smoothstep(2.0, 8.0, vP.y));   // al buio come le foto, e più in alto ancora di più
+      float wp = 0.04;
+      vec3 col = (c0 * w0 + c1 * w1 + base * wp) / (w0 + w1 + wp);
+      col = ashCover(col, vW, N.y, 1.0);
+      float a = 1.0;
+      #ifdef VEIL
+        a = smoothstep(1.6, 3.6, length(vP - uEye));
+      #endif
+      gl_FragColor = vec4(shade(col, vW, 1.0), a);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// scatola ruotata di ang attorno a (cx, cz), misure nelle sue coordinate; il fondo non serve
+function boxQ(L, cx, cz, ang, x0, x1, y0, y1, z0, z1) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const P = (x, y, z) => [cx + x * c - z * s, y, cz + x * s + z * c], H = (x, z) => [x * c - z * s, 0, x * s + z * c];
+  L.push([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1), [0, 1, 0]]);
+  L.push([P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0), H(0, -1)]);
+  L.push([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1), H(0, 1)]);
+  L.push([P(x0, y0, z0), P(x0, y0, z1), P(x0, y1, z1), P(x0, y1, z0), H(-1, 0)]);
+  L.push([P(x1, y0, z0), P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z0), H(1, 0)]);
+}
+// il punto (x, z) cade nella scatola ruotata?
+function inBoxQ(x, z, cx, cz, ang, x0, x1, z0, z1) {
+  const c = Math.cos(ang), s = Math.sin(ang), dx = x - cx, dz = z - cz;
+  const lx = dx * c + dz * s, lz = -dx * s + dz * c;
+  return lx > x0 && lx < x1 && lz > z0 && lz < z1;
+}
+
+// Coordinate della stanza: la facciata con la porta sta a z = BACK, l'altare in fondo verso -z.
+// Nel file le z partono dalla facciata, quindi qui si sposta tutto di BACK.
+async function loadCathedral(sc) {
+  const texs = await Promise.all(sc.foto.map((f) => new Promise((res, rej) => texLoader.load(f.tex, res, undefined, rej))));
+  for (const t of texs) {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
+  }
+  const N = sc.nave, hw = N.w / 2, z1 = BACK, z0 = BACK - N.len, Hc = N.cornice, rise = N.volta;
+  const [Pd, Ph] = N.presbiterio, Ct = N.cantoria, zl = z1 - Ct.prof, Lp = Ct.piano, Lb = Lp - Ct.spess;
+  // la scala della cantoria corre lungo la facciata, a sinistra della porta: dal basso (SX1) all'alto (ST)
+  const SW = 0.9, SX1 = -DOOR_W / 2 - 0.07, ST = -hw + 0.4, NSTEP = 13;
+  const K = [[], [], [], []], [Wl, Fl, Wd, Vt] = K;   // muri, pavimenti, legno, volta; le macerie a parte
+
+  ry(Fl, 0, -hw, hw, z0 + Pd, z1, 1);
+  ry(Fl, Ph, -hw, hw, z0, z0 + Pd, 1); rz(Fl, z0 + Pd, -hw, hw, 0, Ph, 1);
+  rx(Wl, -hw, 0, Hc, z0, z1, 1); rx(Wl, hw, 0, Hc, z0, z1, -1);
+  rz(Wl, z0, -hw, hw, 0, Hc, 1);
+  wallZ(Wl, z1, -hw, hw, Hc, [[-DOOR_W / 2, DOOR_W / 2, DOOR_H]], -1);
+  // volta a botte ribassata, e le due lunette sotto di lei
+  const Rv = (hw * hw + rise * rise) / (2 * rise), yc = Hc + rise - Rv, a0 = Math.atan2(Hc - yc, hw), NS = 28;
+  const arc = (i) => { const a = a0 + (Math.PI - 2 * a0) * i / NS; return [Rv * Math.cos(a), yc + Rv * Math.sin(a), a]; };
+  for (let i = 0; i < NS; i++) {
+    const [xa, ya] = arc(i), [xb, yb] = arc(i + 1), m = arc(i + 0.5)[2];
+    Vt.push([[xa, ya, z0], [xb, yb, z0], [xb, yb, z1], [xa, ya, z1], [-Math.cos(m), -Math.sin(m), 0]]);
+    Wl.push([[0, Hc, z0], [xa, ya, z0], [xb, yb, z0], [xb, yb, z0], [0, 0, 1]]);
+    Wl.push([[0, Hc, z1], [xa, ya, z1], [xb, yb, z1], [xb, yb, z1], [0, 0, -1]]);
+  }
+  // cantoria: impalcato con il vano della scala, trave e parapetto pieni, due colonne sotto
+  ry(Wd, Lp, -hw, hw, zl, z1 - SW, 1); ry(Wd, Lp, -hw, ST, z1 - SW, z1, 1); ry(Wd, Lp, SX1, hw, z1 - SW, z1, 1);
+  ry(Wd, Lb, -hw, hw, zl, z1 - SW, -1); ry(Wd, Lb, -hw, ST, z1 - SW, z1, -1); ry(Wd, Lb, SX1, hw, z1 - SW, z1, -1);
+  rz(Wd, z1 - SW, ST, SX1, Lb, Lp, 1); rx(Wd, SX1, Lb, Lp, z1 - SW, z1, -1); rx(Wd, ST, Lb, Lp, z1 - SW, z1, 1);
+  rz(Wd, zl, -hw, hw, Lb, Ct.parapetto, -1); rz(Wd, zl + 0.12, -hw, hw, Lp, Ct.parapetto, 1);
+  ry(Wd, Ct.parapetto, -hw, hw, zl, zl + 0.12, 1);
+  for (const s of [-1, 1]) boxQ(Wl, s * Ct.colonne, zl + 0.15, 0, -0.11, 0.11, 0, Lb, -0.11, 0.11);
+  const tread = (SX1 - ST) / NSTEP, rs = Lp / NSTEP;
+  for (let i = 0; i < NSTEP; i++) {
+    const xa = SX1 - (i + 1) * tread, xb = SX1 - i * tread, y = (i + 1) * rs;
+    ry(Wd, y, xa, xb, z1 - SW, z1, 1); rx(Wd, xb, y - rs, y, z1 - SW, z1, 1); rz(Wd, z1 - SW, xa, xb, 0, y, -1);
+  }
+  // panche, e il gradino rotto dell'altare contro il muro di fondo
+  const benches = sc.panche.map(([x, z, len, ang]) => [x, z + BACK, len / 2, ang]);
+  for (const [x, z, h, ang] of benches) {
+    boxQ(Wd, x, z, ang, -h, h, 0.4, 0.46, -0.2, 0.18);
+    boxQ(Wd, x, z, ang, -h, h, 0.46, 0.88, -0.2, -0.15);
+    for (const e of [-h + 0.06, h - 0.06]) boxQ(Wd, x, z, ang, e - 0.03, e + 0.03, 0, 0.4, -0.2, 0.18);
+  }
+  boxQ(Wl, 0, z0 + 0.2, 0, -1.3, 1.3, Ph, N.zoccolo, -0.2, 0.2);
+  // macerie: cumuli sul presbiterio che scivolano giù dal gradino
+  const heaps = sc.macerie.map(([x, z, rad, hh]) => [x, z + BACK, rad, hh]);
+  const heap = (x, z) => {
+    let h = 0;
+    for (const [hx, hz, rad, hh] of heaps) {
+      const t = 1 - ((x - hx) ** 2 + (z - hz) ** 2) / (rad * rad);
+      if (t > 0) h += hh * t * t * (0.8 + 0.4 * (0.5 + 0.5 * Math.sin(x * 7.1 + Math.sin(z * 5.3)) * Math.sin(z * 6.7 + x * 2.1)));
+    }
+    return h;
+  };
+  const floorAt = (x, z) => (z < z0 + Pd ? Ph : 0) + heap(x, z);
+  const hg = { pos: [], idx: [] }, HS = 0.12, nx = Math.round(N.w / HS), nz = Math.round((Pd + 2) / HS);
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    const x = -hw + i * HS, z = z0 + j * HS;
+    hg.pos.push(x, floorAt(x, z) + 0.004, z);
+  }
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+    const hmax = Math.max(...[a, b, c, d].map((k) => heap(hg.pos[k * 3], hg.pos[k * 3 + 2])));
+    if (hmax > 0.01) hg.idx.push(a, c, b, b, c, d);
+  }
+  const rubble = new THREE.BufferGeometry();
+  rubble.setAttribute("position", new THREE.Float32BufferAttribute(hg.pos, 3));
+  rubble.setIndex(hg.idx); rubble.computeVertexNormals();
+
+  // le due macchine fotografiche e quello che vede ciascuna
+  const shots = sc.foto.map((f) => ({ ...f, P: new THREE.Vector3(f.pos[0], f.pos[1], f.pos[2] + BACK) }));
+  const geos = [...K.map((L) => quadsGeo(L)), rubble];
+  const depthScene = new THREE.Scene();
+  for (const g of geos) depthScene.add(new THREE.Mesh(g));
+  depthScene.overrideMaterial = catDepthMat;
+  const u = { uEye: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector2(shots[0].gain, shots[1].gain) }, uZoc: { value: N.zoccolo } };
+  const clear = renderer.getClearColor(new THREE.Color()), clearA = renderer.getClearAlpha();
+  renderer.setClearColor(0xffffff, 1);
+  shots.forEach((s, k) => {
+    const t = Math.tan(THREE.MathUtils.degToRad(s.hfov) / 2);
+    const pc = new THREE.PerspectiveCamera(THREE.MathUtils.radToDeg(2 * Math.atan(t * 0.75)), 4 / 3, 0.05, CAT_FAR);
+    pc.rotation.order = "YXZ"; pc.position.copy(s.P); pc.rotation.set(s.rot[1], s.rot[0], s.rot[2]); pc.updateMatrixWorld();
+    const rt = new THREE.WebGLRenderTarget(1024, 768, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false });
+    catDepthMat.uniforms.uC.value.copy(s.P);
+    renderer.setRenderTarget(rt); renderer.render(depthScene, pc);
+    u["uPh" + k] = { value: texs[k] }; u["uDp" + k] = { value: rt.texture };
+    u["uM" + k] = { value: new THREE.Matrix3().setFromMatrix4(pc.matrixWorldInverse) };
+    u["uC" + k] = { value: s.P }; u["uK" + k] = { value: new THREE.Vector2(0.5 / t, 0.5 / (t * 0.75)) };
+  });
+  renderer.setRenderTarget(null); renderer.setClearColor(clear, clearA);
+
+  const group = new THREE.Group();
+  geos.forEach((g, kind) => group.add(new THREE.Mesh(g, catMat(u, kind))));
+  // il varco verso il corridoio: da lontano è il portone chiuso della foto, si apre quando ti avvicini
+  const V = []; rz(V, z1 - 0.002, -DOOR_W / 2, DOOR_W / 2, 0, DOOR_H, -1);
+  group.add(new THREE.Mesh(quadsGeo(V), catMat(u, 0, true)));
+  // dove si cammina: il pavimento più alto a portata di passo; la cantoria si raggiunge solo dalla scala
+  const ground = (x, z, y) => {
+    let fl = floorAt(x, z);
+    if (z > z1 - SW && x > ST && x < SX1) fl = Lp * (SX1 - x) / (SX1 - ST);
+    const blocked = benches.some(([bx, bz, h, ang]) => inBoxQ(x, z, bx, bz, ang, -h, h, -0.2, 0.18))
+      || (Math.abs(Math.abs(x) - Ct.colonne) < 0.11 && Math.abs(z - zl - 0.15) < 0.11)
+      || (Math.abs(x) < 1.3 && z < z0 + 0.4);
+    const loft = z > zl + 0.12 && !(z > z1 - SW && x > ST && x < SX1) ? Lp : null;
+    let best = null;
+    for (const h of [blocked ? null : fl, loft]) if (h !== null && h <= y + 0.55 && (best === null || h > best)) best = h;
+    return best === null || best < y - 0.7 ? null : best;
+  };
+  return {
+    sc, group, ground, shots, next: 1, eye: u.uEye.value, fog: 0.022, glow: glowOf(texs[1].image),
+    box: new THREE.Box3(new THREE.Vector3(-hw, 0, z0), new THREE.Vector3(hw, Hc + rise, z1)),
+    relief: new THREE.Group(), reliefLo: new THREE.Group(),
+  };
 }
 
 // ---------- il percorso: un corridoio con le stanze alternate ai due lati ----------
@@ -796,34 +1010,45 @@ function inRoom(r, x, z) {
   const [cx, cz] = toRoom(r, x, z);
   return cx > r.box.min.x && cx < r.box.max.x && cz > r.box.min.z && cz < BACK;
 }
-function walkable(x, z) {
-  if (x > W.xs && x < W.xe && Math.abs(z) < HW) return !(Math.abs(x - W.xt) < WALL / 2 && Math.abs(z) > TW / 2);
-  if (Math.abs(z) < DOOR_W / 2 && ((x > W.xs - WALL && x <= W.xs) || (x >= W.xe && x < W.xe + WALL))) return true;   // nella porta di brace
+// l'altezza del pavimento sotto (x, z), oppure null se lì non si passa
+function ground(x, z) {
+  if (x > W.xs && x < W.xe && Math.abs(z) < HW) return Math.abs(x - W.xt) < WALL / 2 && Math.abs(z) > TW / 2 ? null : 0;
+  if (Math.abs(z) < DOOR_W / 2 && ((x > W.xs - WALL && x <= W.xs) || (x >= W.xe && x < W.xe + WALL))) return 0;   // nella porta di brace
   for (const r of rooms) {
     const [cx, cz] = toRoom(r, x, z);
     if (cz > BACK + WALL + 0.01 || cz < r.box.min.z + 0.25 || cx < r.box.min.x + 0.25 || cx > r.box.max.x - 0.25) continue;
-    if (Math.abs(cx) < DOOR_W / 2 && cz >= BACK) return true;                // soglia
+    if (Math.abs(cx) < DOOR_W / 2 && cz >= BACK) return 0;                   // soglia
     if (cz >= BACK) continue;
-    if (Math.abs(cx) < DOOR_W / 2 - 0.02 && cz > -0.6) return true;         // dalla porta al punto di ripresa
-    if (cellWalk(r.grid, ...rot(cx, cz, -r.beta))) return true;
+    if (r.ground) { const h = r.ground(cx, cz, player.y); if (h !== null) return h; continue; }
+    if (Math.abs(cx) < DOOR_W / 2 - 0.02 && cz > -0.6) return 0;            // dalla porta al punto di ripresa
+    if (cellWalk(r.grid, ...rot(cx, cz, -r.beta))) return 0;
   }
-  return false;
+  return null;
 }
 function free(x, z) {
-  if (!walkable(x, z)) return false;
+  const h = ground(x, z);
+  if (h === null) return null;
   for (let k = 0; k < 8; k++) {
     const a = k * Math.PI / 4;
-    if (!walkable(x + Math.cos(a) * RADIUS, z + Math.sin(a) * RADIUS)) return false;
+    if (ground(x + Math.cos(a) * RADIUS, z + Math.sin(a) * RADIUS) === null) return null;
   }
-  return true;
+  return h;
 }
 
 // ---------- stato del giocatore ----------
-const player = { x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0 };
+const player = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0 };
 const input = { f: 0, s: 0, run: false, jx: 0, jy: 0 };
 // nel punto di ripresa, guardando esattamente come la fotografia originale
 function placeAt(r) {
-  player.x = r.origin.x; player.z = r.origin.z; player.vx = player.vz = 0;
+  player.vx = player.vz = 0;
+  if (r.shots) {   // la cattedrale ha due punti di ripresa: ogni salto porta all'altro
+    const s = r.shots[r.next]; r.next = (r.next + 1) % r.shots.length;
+    const [dx, dz] = rot(s.P.x, s.P.z, r.theta);
+    player.x = r.origin.x + dx; player.z = r.origin.z + dz; player.y = s.P.y - EYE;
+    player.yaw = s.rot[0] + r.theta; player.pitch = s.rot[1];
+    return;
+  }
+  player.x = r.origin.x; player.z = r.origin.z; player.y = 0;
   const R = r.sc.R;
   const [dx, dz] = rot(...rot(-R[0][2], -R[2][2], r.beta), r.theta);
   player.yaw = Math.atan2(-dx, -dz);
@@ -851,7 +1076,7 @@ window.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   keys.add(e.code);
   if (e.code === "KeyF") toggleTorch();
-  const n = parseInt(e.key, 10);
+  const n = e.key === "0" ? 10 : parseInt(e.key, 10);
   if (world && n >= 1 && n <= world.scenes.length) goTo(n - 1);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.code));
@@ -994,10 +1219,12 @@ function frame() {
     const k = 1 - Math.exp(-dt * 9);
     player.vx += (tx - player.vx) * k; player.vz += (tz - player.vz) * k;
     const nx = player.x + player.vx * dt, nz = player.z + player.vz * dt;
-    if (free(nx, nz)) { player.x = nx; player.z = nz; }
-    else if (free(nx, player.z)) { player.x = nx; player.vz *= 0.5; }
-    else if (free(player.x, nz)) { player.z = nz; player.vx *= 0.5; }
-    else { player.vx = player.vz = 0; }
+    let h;
+    if ((h = free(nx, nz)) !== null) { player.x = nx; player.z = nz; }
+    else if ((h = free(nx, player.z)) !== null) { player.x = nx; player.vz *= 0.5; }
+    else if ((h = free(player.x, nz)) !== null) { player.z = nz; player.vx *= 0.5; }
+    else { player.vx = player.vz = 0; h = ground(player.x, player.z); }
+    if (h !== null) player.y += (h - player.y) * (1 - Math.exp(-dt * 12));   // gradini, scala, macerie
     // le due porte di brace in fondo si toccano: si esce da una e si rientra dall'altra
     if (!busy && performance.now() - arrivedAt > 1200) {
       const loop = (x) => { player.vx = player.vz = 0; teleport(() => { player.x = x; U.uAsh.value = 0.12; }); };
@@ -1006,15 +1233,16 @@ function frame() {
     }
     const speed = Math.hypot(player.vx, player.vz);
     player.bob += speed * dt * 5.2;
-    camera.position.set(player.x, EYE + Math.sin(player.bob) * 0.025 * Math.min(speed, 1.5), player.z);
+    camera.position.set(player.x, player.y + EYE + Math.sin(player.bob) * 0.025 * Math.min(speed, 1.5), player.z);
     camera.rotation.set(player.pitch, player.yaw, 0);
     camera.updateMatrixWorld();
+    for (const r of rooms) if (r.eye) r.group.worldToLocal(r.eye.copy(camera.position));
     // la cenere si accumula col tempo
     U.uAsh.value = Math.min(0.75, U.uAsh.value + dt * 0.004 * (ashLevel + 1));
     U.uTorch.value += (torchTarget - U.uTorch.value) * (1 - Math.exp(-dt * 6));
     U.uCamPos.value.copy(camera.position);
     camera.getWorldDirection(fwd); U.uCamDir.value.copy(fwd);
-    const fd = (player.x < W.xt ? 0.05 : 0.065) + 0.018 * ashLevel;
+    const fd = where && where.fog ? where.fog * (1 + 0.4 * ashLevel) : (player.x < W.xt ? 0.05 : 0.065) + 0.018 * ashLevel;
     U.uFogDensity.value += (fd - U.uFogDensity.value) * (1 - Math.exp(-dt * 1.5)); scene.fog.density = U.uFogDensity.value;
     const fl = 0.85 + 0.15 * Math.sin(U.uTime.value * 7.0) * Math.sin(U.uTime.value * 2.3);
     LIGHTS.uLC.value[NL - 2].set(1.0, 0.42, 0.15).multiplyScalar(1.6 * fl);
@@ -1069,6 +1297,8 @@ function frame() {
   requestAnimationFrame(frame);
   try {
     world = await (await fetch("world.json")).json();
+    const cat = await (await fetch("cattedrale.json")).json();
+    world.scenes.push(cat);
     const roomsEl = $("rooms");
     world.scenes.forEach((sc, i) => {
       if (i === 0 || world.scenes[i - 1].group !== sc.group) {

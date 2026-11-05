@@ -14,6 +14,11 @@ for sc in world["scenes"]:
     sc["depth"] = data_uri(data / sc["depth"])
     if "doc" in sc:
         sc["doc"]["tex"] = data_uri(data / sc["doc"]["tex"])
+# la cattedrale sta in un file a parte: build_world.py riscrive world.json senza saperne nulla
+cat = json.loads((data / "cattedrale.json").read_text())
+for f in cat["foto"]:
+    f["tex"] = data_uri(data / f["tex"])
+world["scenes"].append(cat)
 
 html = web.read_text()
 # niente CDN: three.js incorporato come script classico (definisce la variabile globale THREE)
@@ -21,7 +26,9 @@ html, n1 = re.subn(r'<script type="importmap">.*?</script>\s*', "", html, flags=
 rep2 = ("<script>\n" + three.read_text() + "\n</script>\n<script>\nconst WORLD = "
         + json.dumps(world, separators=(",", ":")) + ";\n(function () {\n")
 html, n2 = re.subn(r'<script type="module">\s*import \* as THREE from "three";', lambda m: rep2, html)
-html, n3 = re.subn(r'world = await \(await fetch\("world\.json"\)\)\.json\(\);', "world = WORLD;", html)
+html, n3 = re.subn(r'world = await \(await fetch\("world\.json"\)\)\.json\(\);\s*'
+                   r'const cat = await \(await fetch\("cattedrale\.json"\)\)\.json\(\);\s*world\.scenes\.push\(cat\);',
+                   "world = WORLD;", html)
 html, n4 = re.subn(r"window\.__faraona = \{ player, goTo, U \};\s*</script>",
                    lambda m: "window.__faraona = { player, goTo, U };\n})();\n</script>", html)
 assert (n1, n2, n3, n4) == (1, 1, 1, 1), (n1, n2, n3, n4)
