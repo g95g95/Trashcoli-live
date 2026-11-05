@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trashcoli · Manifesto</title>
+<meta name="description" content="Il manifesto dei Trashcoli: perché entriamo nei luoghi abbandonati. Dalla spusticzine n. 2, agosto 2022.">
+<meta name="theme-color" content="#0b0907">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="it_IT">
+<meta property="og:title" content="Trashcoli · Manifesto">
+<meta property="og:description" content="Il manifesto dei Trashcoli: perché entriamo nei luoghi abbandonati. Dalla spusticzine n. 2, agosto 2022.">
+<meta property="og:url" content="https://g95g95.github.io/Trashcoli-live/manifesto/">
+<meta property="og:image" content="https://g95g95.github.io/Trashcoli-live/manifesto/sfondo.jpg">
+<meta property="og:image:width" content="1600">
+<meta property="og:image:height" content="1200">
+<meta property="og:image:alt" content="Due esploratori di spalle in un varco di mattoni, oltre il varco un cantiere bianco e una rete arancione">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+/* Due modi: statico (senza JS o con "riduci movimento") e .scorre, dove la carta è fissa e la muove lo scorrimento. */
+:root {
+  --notte: #0b0907;
+  --osso: #ece6da;
+  --brace: #e2652e;
+  --inchiostro: #23150c;
+  --ruggine: #7d1e0a;
+  --carta: #efe3c7;
+  --f-titolo: "IM Fell English SC", "IM Fell English", "Iowan Old Style", Palatino, Georgia, serif;
+  --f-testo: "IM Fell English", "Iowan Old Style", Palatino, Georgia, serif;
+  --fs: clamp(1.09rem, .62rem + .95vw, 1.3rem);
+  --px: clamp(18px, 3.6vw + 5px, 4rem);
+  --W: min(var(--fs) * 26.5 + 2 * var(--px), 100% - 20px);   /* carta: circa 63 caratteri per riga */
+  --H: 28px;                      /* spessore del rullo */
+  --pomo: clamp(10px, 1.6vw, 18px);
+  --E: 26px;                      /* fascia dei bordi strappati */
+  --Ht: 900px;
+  color-scheme: dark;
+}
+@media (max-width: 599px) { :root { --E: 14px; } }
+* { box-sizing: border-box; }
+html { background: var(--notte); }
+body { margin: 0; background: var(--notte); color: var(--osso); font-family: var(--f-testo); overflow-x: hidden; }
+
+/* sfondo */
+.sfondo { position: fixed; inset: 0; overflow: hidden; background: #000; }
+.zoom, .zoom i, .buio, .velo { position: absolute; inset: 0; }
+.zoom { transform-origin: 46% 60%; }
+.zoom i { background: url(sfondo.jpg) 46% 60% / cover no-repeat; }
+.zoom .s0 { filter: blur(18px) brightness(.85); transform: scale(1.08); }
+.zoom .s1, .zoom .s2 { opacity: 0; }
+.buio { background: #050403; opacity: 0; }
+.velo { background: radial-gradient(120% 95% at 50% 55%, transparent 45%, rgba(5, 4, 3, .78) 100%); }
+
+/* apertura */
+.apertura { position: relative; min-height: 100vh; min-height: 100svh; display: grid; grid-template-rows: 1fr auto 3.4fr; justify-items: center; padding: 0 16px; z-index: 1; }
+.apertura h1 { grid-row: 2; margin: 0; font: 400 clamp(1.9rem, 6.4vw, 4.6rem) / 1.05 var(--f-titolo); letter-spacing: .2em; text-transform: uppercase; text-align: center; color: var(--osso);
+  text-shadow: 0 0 1px rgba(255, 230, 200, .4), 0 2px 18px rgba(0, 0, 0, .9), 0 0 42px rgba(226, 101, 46, .22); }
+.apertura h1 span { display: inline-block; }
+.apertura h1 .punto { color: var(--brace); padding: 0 .1em 0 .3em; }
+.invito { display: none; }
+
+/* pergamena */
+.pergamena { position: relative; z-index: 2; padding-bottom: 18vh; overflow-x: hidden; overflow-x: clip; }
+.rullo { position: relative; height: var(--H); z-index: 3; pointer-events: none; }
+.asta { position: absolute; left: 0; right: 0; margin: auto; top: 17%; bottom: 17%; width: min(var(--W) + 2 * var(--pomo) + 12px, 100% - 2px); border-radius: 999px;
+  background: linear-gradient(#0f0805, #4c3019 24%, #8a6238 40%, #4a2d17 62%, #120a05); box-shadow: 0 6px 14px rgba(0, 0, 0, .6); }
+.asta::before, .asta::after { content: ""; position: absolute; top: -32%; bottom: -32%; width: var(--pomo); border-radius: 42% / 50%;
+  background: radial-gradient(70% 60% at 38% 30%, #e0bd7a, #8c6527 42%, #3a2609 78%, #160d03); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .55), 0 3px 8px rgba(0, 0, 0, .6); }
+.asta::before { left: 0; } .asta::after { right: 0; }
+.rotolo { position: absolute; left: 0; right: 0; top: 0; height: 100%; margin: auto; width: calc(var(--W) - 2px); overflow: hidden; border-radius: 3px / 50%; transform: scaleY(1.2);
+  background-color: #dcc493; }
+.giro { position: absolute; left: 0; right: 0; top: -512px; bottom: -512px; background: repeating-linear-gradient(rgba(80, 45, 15, .08) 0 1px, transparent 1px 5px), var(--tex, none) 0 0 / 512px; }
+.rotolo::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(25, 10, 3, .95), rgba(70, 32, 10, .45) 1.6%, transparent 4%, transparent 96%, rgba(70, 32, 10, .45) 98.4%, rgba(25, 10, 3, .95)),
+              linear-gradient(rgba(34, 15, 4, .9), rgba(90, 50, 18, .3) 24%, rgba(255, 236, 196, .28) 40%, rgba(110, 64, 24, .12) 58%, rgba(30, 13, 4, .92)); }
+.piano { position: relative; margin: calc(var(--H) * -.5) 0; z-index: 2; }
+
+/* carta */
+.carta { position: relative; width: var(--W); margin: 0 auto; }
+.foglio { position: relative; padding: 3rem var(--px) 3.4rem; color: var(--inchiostro); background-color: var(--carta);
+  background-image:
+    linear-gradient(90deg, rgba(120, 72, 28, .2), transparent 9%, transparent 91%, rgba(120, 72, 28, .2)),
+    radial-gradient(60% 40% at 22% 30%, rgba(150, 100, 40, .1), transparent 70%),
+    radial-gradient(50% 30% at 80% 70%, rgba(140, 90, 35, .09), transparent 70%),
+    var(--tex, linear-gradient(#efe3c7, #efe3c7));
+  background-size: 100% 100%, 100% 1700px, 100% 2300px, 512px 512px; }
+.bordato .foglio {
+  -webkit-mask-image: var(--mL), linear-gradient(#000 0 0), var(--mR); mask-image: var(--mL), linear-gradient(#000 0 0), var(--mR);
+  -webkit-mask-size: var(--E) var(--Ht), calc(100% - 2 * var(--E) + 2px) 100%, var(--E) var(--Ht); mask-size: var(--E) var(--Ht), calc(100% - 2 * var(--E) + 2px) 100%, var(--E) var(--Ht);
+  -webkit-mask-position: left top, center top, right top; mask-position: left top, center top, right top;
+  -webkit-mask-repeat: repeat-y, no-repeat, repeat-y; mask-repeat: repeat-y, no-repeat, repeat-y; }
+.bordato .foglio::before, .bordato .foglio::after { content: ""; position: absolute; top: 0; bottom: 0; width: var(--E); pointer-events: none; }
+.bordato .foglio::before { left: 0; background: var(--bL) left top / var(--E) var(--Ht) repeat-y; }
+.bordato .foglio::after { right: 0; background: var(--bR) right top / var(--E) var(--Ht) repeat-y; }
+.brace { display: none; }
+.bordato .brace { display: block; position: absolute; top: 0; bottom: 0; width: calc(var(--E) + 8px); pointer-events: none; }
+.bordato .brace.l { left: -8px; background: var(--gL) left top / calc(var(--E) + 8px) var(--Ht) repeat-y; }
+.bordato .brace.r { right: -8px; background: var(--gR) right top / calc(var(--E) + 8px) var(--Ht) repeat-y; }
+
+/* testo */
+.testo { position: relative; font-size: var(--fs); line-height: 1.62; text-align: justify; text-align-last: left; hyphens: auto; -webkit-hyphens: auto;
+  font-variant-ligatures: common-ligatures; text-shadow: 0 0 .6px rgba(35, 21, 12, .55); }
+.testo p { margin: 0; }
+.testo p + p { text-indent: 1.5em; }
+.blocco + .blocco { margin-top: 1.1em; }
+.blocco + .blocco::before { content: ""; display: block; width: 4.5em; height: 1px; margin: 0 auto 1.1em; background: linear-gradient(90deg, transparent, rgba(70, 36, 14, .6), transparent); }
+.blocco:first-child p:first-child::first-letter { float: left; font-family: var(--f-titolo); font-size: 4.3em; line-height: .8; margin: .07em .08em 0 -.02em; color: var(--ruggine);
+  text-shadow: 0 0 1px rgba(125, 30, 10, .6), 0 0 14px rgba(226, 101, 46, .18); }
+.testo em { font-style: italic; }
+.entraci { color: var(--ruggine); }
+.firma { margin-top: 2.6em !important; text-align: right; text-align-last: right; text-indent: 0 !important; font-style: italic; font-size: .92em; letter-spacing: .04em; color: #4a2c18; }
+.firma::before { content: ""; display: inline-block; vertical-align: middle; width: 3.2em; height: 1px; margin-right: .7em; background: linear-gradient(90deg, transparent, rgba(70, 36, 14, .7)); }
+@media (max-width: 599px) {
+  .apertura h1 span { display: block; }
+  .apertura h1 .punto { padding: 0; font-size: .7em; line-height: 1.3; }
+  .testo { text-align: left; }
+}
+::selection { background: rgba(226, 101, 46, .32); color: #1a0e06; }
+
+.cenere, .binario, .alone, .ombra, .striscia { display: none; }
+
+/* modo .scorre: tutto fisso, lo scorrimento del documento muove la carta tra i rulli */
+.scorre body { overflow-x: hidden; }
+.scorre .apertura { position: fixed; inset: 0; min-height: 0; pointer-events: none; will-change: opacity, transform; }
+.scorre .pergamena { position: fixed; inset: 0; padding: 0; overflow: hidden; pointer-events: none; }
+.scorre .piano, .scorre .striscia { display: block; position: absolute; top: 0; left: 0; right: 0; height: 0; margin: 0; overflow: hidden; will-change: transform; }
+.scorre .carta { position: absolute; top: 0; left: 0; right: 0; transform-origin: 0 0; will-change: transform; }
+.scorre .piano .carta { pointer-events: auto; }
+.scorre .rullo { position: absolute; top: 0; left: 0; right: 0; will-change: transform; }
+.scorre .rotolo, .scorre .giro { will-change: transform; }
+.scorre .alone { display: block; position: absolute; top: 0; left: 0; right: 0; margin: auto; height: 100px; width: calc(var(--W) + 120px); transform-origin: 50% 0; transform: scaleY(0);
+  background: linear-gradient(90deg, transparent, rgba(4, 3, 2, .55) 60px, rgba(4, 3, 2, .55) calc(100% - 60px), transparent); }
+.scorre .ombra { display: block; position: absolute; top: 0; left: 0; right: 0; margin: auto; width: calc(var(--W) + 2px); height: 100px; transform: scaleY(0); z-index: 2; }
+.ombra.su { transform-origin: 50% 0;
+  background: linear-gradient(to top, rgba(26, 12, 4, 0), rgba(255, 244, 222, .1) 14%, rgba(26, 12, 4, .1) 30%, rgba(26, 12, 4, .26) 48%, rgba(26, 12, 4, .46) 64%, rgba(22, 10, 3, .66) 78%, rgba(18, 8, 2, .86) 90%, rgba(10, 4, 1, .97)); }
+.ombra.giu { transform-origin: 50% 100%;
+  background: linear-gradient(rgba(26, 12, 4, 0), rgba(255, 244, 222, .1) 14%, rgba(26, 12, 4, .1) 30%, rgba(26, 12, 4, .26) 48%, rgba(26, 12, 4, .46) 64%, rgba(22, 10, 3, .66) 78%, rgba(18, 8, 2, .86) 90%, rgba(10, 4, 1, .97)); }
+.scorre .cenere { display: block; position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+.scorre .binario { display: block; height: calc(var(--corsa, 0px) + 100vh); }
+.scorre .zoom i { will-change: opacity, transform; }
+.clone { pointer-events: none; user-select: none; -webkit-user-select: none; }
+.clone *, .clone *::before, .clone *::after { animation: none !important; }
+.clone .brace { opacity: .8; }
+
+/* inchiostro: il paragrafo affiora sfocato e si asciuga nella carta */
+.scorre .testo p { opacity: 0; filter: blur(4px); color: #7a4a26; }
+.scorre .testo p.inchiostro { opacity: 1; filter: blur(0); color: var(--inchiostro);
+  transition: opacity 1.5s cubic-bezier(.3, .6, .3, 1), filter 2.2s cubic-bezier(.2, .7, .2, 1), color 3.2s ease-out; }
+.scorre .testo .firma.inchiostro { color: #4a2c18; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sfondo { animation: emergi 4.2s cubic-bezier(.3, .1, .2, 1) both; }
+  .zoom { animation: respira 46s ease-in-out 4s infinite alternate both; }
+  .apertura h1 { animation: titolo 2.8s cubic-bezier(.2, .6, .2, 1) 1.3s both; }
+  .scorre .rullo { animation: appare 1.6s ease-out 2.4s both; }
+  .scorre .invito { display: block; grid-row: 3; align-self: end; margin-bottom: calc(20vh + 2.6rem); width: 1px; height: 46px; background: linear-gradient(transparent, rgba(236, 230, 218, .7)); opacity: 0;
+    animation: appare 1.2s ease-out 3.6s forwards, invito 2.6s ease-in-out 4.8s infinite; transform-origin: 50% 0; }
+  .brace.l { animation: guizzo 3.7s ease-in-out infinite; }
+  .brace.r { animation: guizzo 4.6s ease-in-out -1.3s infinite; }
+  .scorre .entraci.arde { animation: arde 3s cubic-bezier(.2, .6, .2, 1) both, cova 3.4s ease-in-out 3s infinite alternate; }
+  .scorre .chiama .brace.l { animation: divampa 3.4s ease-out, guizzo 3.7s ease-in-out 3.4s infinite; }
+  .scorre .chiama .brace.r { animation: divampa 3.4s ease-out .15s, guizzo 4.6s ease-in-out 3.55s infinite; }
+}
+@keyframes emergi { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+@keyframes respira { from { transform: scale(1); } to { transform: scale(1.07); } }
+@keyframes titolo { from { opacity: 0; filter: blur(10px); letter-spacing: .34em; } to { opacity: 1; filter: blur(0); letter-spacing: .2em; } }
+@keyframes appare { from { opacity: 0; } to { opacity: 1; } }
+@keyframes invito { 0%, 100% { transform: scaleY(.4); opacity: .25; } 50% { transform: scaleY(1); opacity: .9; } }
+@keyframes guizzo { 0%, 100% { opacity: .7; } 31% { opacity: 1; } 47% { opacity: .55; } 68% { opacity: .95; } 83% { opacity: .75; } }
+/* entraci: la parola si accende come brace e si raffredda in inchiostro rosso */
+@keyframes arde {
+  0% { color: #fff0c8; text-shadow: 0 0 2px #fff1cc, 0 0 9px #ff9d45, 0 0 24px #e2652e, 0 0 46px rgba(226, 101, 46, .7); }
+  45% { color: #d4521a; text-shadow: 0 0 1px rgba(255, 200, 140, .6), 0 0 6px rgba(255, 140, 60, .55), 0 0 16px rgba(226, 101, 46, .35), 0 0 30px rgba(226, 101, 46, .15); }
+  100% { color: var(--ruggine); text-shadow: 0 0 0 transparent, 0 0 4px rgba(226, 101, 46, .28), 0 0 12px rgba(226, 101, 46, .12), 0 0 0 transparent; }
+}
+@keyframes divampa { 0% { opacity: 1; filter: none; } 18% { opacity: 1; filter: brightness(2.2) saturate(1.3); } 100% { opacity: .7; filter: none; } }
+@keyframes cova { to { text-shadow: 0 0 0 transparent, 0 0 6px rgba(226, 101, 46, .5), 0 0 18px rgba(226, 101, 46, .22), 0 0 0 transparent; } }
+</style>
+</head>
+<body>
+<div class="sfondo" aria-hidden="true">
+  <div class="zoom"><i class="s0"></i><i class="s1"></i><i class="s2"></i></div>
+  <i class="buio"></i><i class="velo"></i>
+</div>
+
+<header class="apertura">
+  <h1><span>Trashcoli</span> <span class="punto">·</span> <span>Manifesto</span></h1>
+  <i class="invito" aria-hidden="true"></i>
+</header>
+
+<main class="pergamena">
+  <i class="alone" aria-hidden="true"></i>
+  <div class="rullo su" aria-hidden="true"><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
+  <div class="piano">
+    <article class="carta" id="carta" aria-label="Manifesto dei Trashcoli">
+      <div class="foglio">
+        <div class="testo">
+          <div class="blocco">
+            <p>L'avventura di Trashcoli è nata alla fine del 2019. Siamo sempre stati in qualche modo ispirati e affascinati dall'idea di ammirare e visitare luoghi abbandonati, e quando abbiamo capito che condividevamo questa perversione, e che in realtà spesso, consciamente o no, finivamo in questo tipo di luoghi, abbiamo deciso che valeva la pena raccontare le nostre esplorazioni anche agli altri.</p>
+            <p>Non so se ci sia un motivo più profondo rispetto alla mera fascinazione verso l'ignoto e l'inesplorato tipica degli <em>urbex</em> (termine che indica gli appassionati dei luoghi abbandonati). È stato però interessante notare come, una volta che inizi a cercare luoghi abbandonati da esplorare e fotografare, quegli stessi luoghi poi ti inseguano, e ti si mostrino più facilmente.</p>
+          </div>
+          <div class="blocco">
+            <p>Ci sono centinaia di posti vuoti, incompleti, in disuso in questa città e in questa provincia: sembra quasi un'epidemia. Se capita di fare una passeggiata per Porta Maggiore, se ne svelano tanti da pensare che siano pari ai luoghi abitati: stessa cosa nel centro, in cui tuttavia sono più nascosti. Nei quartieri residenziali invece sono messi in mostra, quasi esibiti. Sono loro che ti dicono: <em class="entraci">entraci</em>.</p>
+            <p>Da un punto di vista estetico, se si supera il ribrezzo verso certe scene e certi odori, è affascinante notare come a volte la natura si mescoli col cemento, e come gli oggetti lasciati in questi spazi vuoti creino delle composizioni quasi dadaiste. Sono intere stanze, interi palazzi a volte, in attesa di essere guardati e studiati, spazi vuoti che cercano un utilizzo. Noi ci limitiamo a quello contemplativo.</p>
+          </div>
+          <div class="blocco">
+            <p>Sono pezzi di un passato recente che puoi toccare con le mani, come dei reperti archeologici di poche generazioni passate: luoghi che hanno respirato e vissuto ma che improvvisamente sono morti e sono stati lasciati lì, in putrefazione, sotto gli occhi di tutti.</p>
+            <p>Allo stesso tempo possono essere immagini del futuro: predizione di un qualcosa che può accadere anche alle nostre stesse case, se non ci saremo più ad abitarle. Nel periodo del lockdown è stato ancora più suggestivo visitare queste strutture: non avevamo molto da fare, chiusi in casa, e scappare per visitare luoghi fuori dallo sguardo di tutti è stato un ottimo spunto di evasione. Ma anche di riflessione: si viveva in uno status apocalittico, da film di fantascienza, con una pandemia in corso e le strade vuote di persone. Luoghi del genere stanno lì a ricordarci cosa può succedere al nostro mondo dopo un grande evento apocalittico: senza di noi i nostri edifici sono solo carcasse destinate all'oblio.</p>
+          </div>
+          <div class="blocco">
+            <p>A volte è così, altre volte il discorso è ancora più complesso: molti luoghi che abbiamo visitato erano relitti di qualcosa di incompleto, embrioni abortiti di strutture che non hanno mai in realtà vissuto e respirato, ma si sono semplicemente bloccati, congelati. Scheletri di un'edilizia selvaggia che mira a costruire l'inutile, il superfluo, soprattutto in una città come la nostra che rimane da anni invariata nella sua crescita, e che anzi negli ultimi tempi ha visto un sostanzioso spopolamento. Questi scheletri di cemento si ergono fieri a ricordarcelo.</p>
+          </div>
+          <div class="blocco">
+            <p>Comunque non vogliamo uscire dal seminato, e soprattutto non vogliamo mentire: si possono sviscerare in molti modi i motivi per cui l'abbandono attrae l'occhio di un osservatore, ma il vero motivo per cui ci piace esplorare questi luoghi, e per cui abbiamo creato Trashcoli, è che godiamo nell'entrare in luoghi in cui nessuno va, esplorare posti fuori dalle mappe, e soddisfare tutta quella voglia infantile di avventura e cazzeggio proibito che questa roba porta con sé.</p>
+            <p>E vi assicuriamo che è molto più divertente di quanto crediate.</p>
+          </div>
+          <p class="firma">spusticzine n. 2 · 08/2022</p>
+        </div>
+      </div>
+      <i class="brace l" aria-hidden="true"></i><i class="brace r" aria-hidden="true"></i>
+    </article>
+  </div>
+  <div class="rullo giu" aria-hidden="true"><i class="asta"></i><i class="rotolo"><i class="giro"></i></i></div>
+  <i class="ombra su" aria-hidden="true"></i><i class="ombra giu" aria-hidden="true"></i>
+</main>
+
+<canvas class="cenere" aria-hidden="true"></canvas>
+<div class="binario" aria-hidden="true"></div>
+
+<script>
+(() => {
+const root = document.documentElement;
+const fermo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = (s, d = document) => d.querySelector(s);
+const dpr = Math.min(devicePixelRatio || 1, 2);
+const tela = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+const carica = (src) => new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = src; });
+const urlDi = (c, tipo, q) => new Promise((ok, ko) => {
+  try { c.toBlob((b) => (b ? ok(URL.createObjectURL(b)) : ko(new Error('toBlob'))), tipo, q); } catch (e) { ko(e); }
+});
+const limita = (x, a, b) => Math.min(b, Math.max(a, x));
+const liscio = (a, b, x) => { const t = limita((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const pixel = (x) => Math.round(x * dpr) / dpr;
+
+// ---- carta: texture da filtri SVG, rasterizzata una volta sola in un tassello ripetibile
+const T = 1024;
+const svgCarta = `<svg xmlns="http://www.w3.org/2000/svg" width="${T}" height="${T}"><filter id="c" x="0" y="0" width="${T}" height="${T}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-color="#f1e5ca" result="base"/>
+<feTurbulence type="fractalNoise" baseFrequency=".0029" numOctaves="5" seed="4" stitchTiles="stitch"/>
+<feColorMatrix type="matrix" values="0 0 0 0 .56 0 0 0 0 .38 0 0 0 0 .15 1.5 0 0 0 -.68"/>
+<feComposite in2="base" operator="over" result="macchie"/>
+<feTurbulence type="turbulence" baseFrequency=".009 .07" numOctaves="3" seed="8" stitchTiles="stitch"/>
+<feColorMatrix type="matrix" values="0 0 0 0 .45 0 0 0 0 .3 0 0 0 0 .14 -1.4 0 0 0 .2"/>
+<feComposite in2="macchie" operator="over" result="fibre"/>
+<feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="1" seed="2" stitchTiles="stitch"/>
+<feColorMatrix type="matrix" values="0 0 0 0 .3 0 0 0 0 .18 0 0 0 0 .08 6 0 0 0 -4.4"/>
+<feComposite in2="fibre" operator="over" result="grana"/>
+<feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="4" seed="6" stitchTiles="stitch"/>
+<feDiffuseLighting surfaceScale="1.6" diffuseConstant="1" lighting-color="#fff" result="luce"><feDistantLight azimuth="235" elevation="60"/></feDiffuseLighting>
+<feComposite in="grana" in2="luce" operator="arithmetic" k1=".5" k2=".56" k3="0" k4="0"/>
+</filter><rect width="100%" height="100%" filter="url(#c)"/></svg>`;
+const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgCarta);
+
+async function texture() {
+  const img = await carica(svgUrl);
+  const c = tela(T, T);
+  c.getContext('2d').drawImage(img, 0, 0);
+  // se il browser considera "sporca" la tela con un SVG disegnato, si usa l'SVG come immagine statica
+  try { return await urlDi(c); } catch { return svgUrl; }
+}
+
+// ---- bordi strappati e bruciati: profilo di rumore periodico, così il tassello si ripete in verticale senza cuciture
+function rumore(n, periodi, seme) {
+  let s = seme >>> 0;
+  const caso = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const out = new Float32Array(n);
+  let amp = 1, tot = 0;
+  for (const p of periodi) {
+    const v = Array.from({ length: p }, () => caso() * 2 - 1);
+    for (let i = 0; i < n; i++) {
+      const x = (i / n) * p, j = Math.floor(x), f = x - j, t = f * f * (3 - 2 * f);
+      out[i] += amp * (v[j % p] * (1 - t) + v[(j + 1) % p] * t);
+    }
+    tot += amp; amp *= 0.66;
+  }
+  for (let i = 0; i < n; i++) out[i] /= tot;
+  return out;
+}
+
+function bordo(E, Ht, seme, destro) {
+  const w = Math.round(E * dpr), wb = Math.round((E + 8) * dpr), h = Math.round(Ht * dpr);
+  const prof = rumore(h, [4, 11, 29, 83, 230], seme);
+  const morsi = rumore(h, [7, 19, 53], seme + 3);
+  const bruc = rumore(h, [3, 9, 26], seme + 1);
+  const braci = rumore(h, [5, 14, 41], seme + 2);
+  const m = new ImageData(w, h), b = new ImageData(w, h), g = new ImageData(wb, h);
+  for (let y = 0; y < h; y++) {
+    const e = E * (0.28 + 0.24 * prof[y] + 0.42 * liscio(0.2, 0.75, morsi[y]));
+    const bw = 3 + 9 * (0.5 + 0.5 * bruc[y]);
+    const gi = liscio(-0.12, 0.34, braci[y]);
+    for (let x = 0; x < w; x++) {
+      const d = (x + 0.5) / dpr - e;
+      const i = (y * w + (destro ? w - 1 - x : x)) * 4;
+      m.data[i + 3] = 255 * limita(d * dpr + 0.5, 0, 1);
+      // bruciatura a strati: alone bruno, bruciato, orlo carbonizzato
+      let r = 0, gg = 0, bl = 0, a = 0;
+      const sopra = (cr, cg, cb, ca) => {
+        const na = ca + a * (1 - ca);
+        if (na > 0) { r = (cr * ca + r * a * (1 - ca)) / na; gg = (cg * ca + gg * a * (1 - ca)) / na; bl = (cb * ca + bl * a * (1 - ca)) / na; }
+        a = na;
+      };
+      sopra(128, 82, 36, 0.4 * (1 - liscio(bw * 0.4, bw + 26, d)));
+      sopra(72, 32, 11, 0.9 * Math.pow(1 - liscio(0, bw, d), 1.2));
+      sopra(18, 8, 3, 0.97 * (1 - liscio(0.5, 1.8, d)));
+      b.data[i] = r; b.data[i + 1] = gg; b.data[i + 2] = bl; b.data[i + 3] = 255 * a;
+    }
+    for (let x = 0; x < wb; x++) {
+      const d = (x + 0.5) / dpr - 8 - e;
+      const i = (y * wb + (destro ? wb - 1 - x : x)) * 4;
+      const nucleo = Math.exp(-Math.abs(d - 0.5) / 0.7);
+      const I = gi * (nucleo + 0.55 * Math.exp(-Math.abs(d) / 4));
+      g.data[i] = 255; g.data[i + 1] = 110 + 110 * nucleo * gi; g.data[i + 2] = 40 + 110 * nucleo * gi; g.data[i + 3] = 255 * Math.min(1, I);
+    }
+  }
+  return [m, b, g].map((dati) => {
+    const c = tela(dati.width, h);
+    c.getContext('2d').putImageData(dati, 0, 0);
+    return urlDi(c);
+  });
+}
+
+async function bordi() {
+  const E = parseFloat(getComputedStyle(root).getPropertyValue('--E')), Ht = 900;
+  const [l, r] = [bordo(E, Ht, 7, false), bordo(E, Ht, 31, true)];
+  const [mL, bL, gL, mR, bR, gR] = await Promise.all([...l, ...r]);
+  const v = { mL, bL, gL, mR, bR, gR };
+  for (const k in v) root.style.setProperty('--' + k, `url(${v[k]})`);
+  root.classList.add('bordato');
+}
+
+// ---- sfondo: sfocature precalcolate una volta, così nessun filtro gira a ogni fotogramma.
+// Se la tela non sa sfocare (si prova su un pixel), si usa una piramide di dimezzamenti.
+const sfocaTela = (() => {
+  const x = tela(5, 1).getContext('2d');
+  x.filter = 'blur(1px)'; x.fillStyle = '#fff'; x.fillRect(2, 0, 1, 1);
+  return x.getImageData(0, 0, 1, 1).data[3] > 0;
+})();
+function sfoca(img, raggio, larghezza) {
+  if (sfocaTela) {
+    const k = larghezza / img.naturalWidth, c = tela(larghezza, Math.round(img.naturalHeight * k)), x = c.getContext('2d');
+    x.filter = `blur(${raggio * k}px)`;
+    x.drawImage(img, 0, 0, c.width, c.height);
+    return urlDi(c, 'image/jpeg', 0.9);
+  }
+  let cur = img, w = img.naturalWidth, h = img.naturalHeight;
+  for (let i = 0, livelli = Math.round(Math.log2(raggio)) - 1; i < livelli; i++) {
+    const c = tela(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, c.width, c.height);
+    cur = c; w = c.width; h = c.height;
+  }
+  while (w < larghezza) {
+    const c = tela(w * 2, h * 2);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, c.width, c.height);
+    cur = c; w = c.width; h = c.height;
+  }
+  return urlDi(cur, 'image/jpeg', 0.9);
+}
+
+async function sfondo() {
+  const img = await carica('sfondo.jpg');
+  const [forte, medio] = await Promise.all([sfoca(img, 40, 480), sfoca(img, 11, 960)]);
+  const [s0, s1, s2] = document.querySelectorAll('.zoom i');
+  s0.style.backgroundImage = `url(${forte})`; s0.style.filter = 'brightness(.85)';
+  s1.style.backgroundImage = `url(${medio})`;
+  s2.style.backgroundImage = 'url(sfondo.jpg)';
+}
+
+texture().then((u) => root.style.setProperty('--tex', `url(${u})`));
+bordi();
+if (fermo) { sfondo(); return; }
+
+// ---- da qui solo il modo animato
+const carta = $('#carta'), pergamena = $('.pergamena'), piano = $('.piano'), apertura = $('.apertura');
+const rulli = [$('.rullo.su'), $('.rullo.giu')];
+const rotoli = rulli.map((r) => $('.rotolo', r)), giri = rulli.map((r) => $('.giro', r));
+const ombre = [$('.ombra.su'), $('.ombra.giu')], alone = $('.alone');
+const [s0, s1, s2] = document.querySelectorAll('.zoom i'), buio = $('.buio');
+const binario = $('.binario');
+
+// Le strisce sono copie della carta, schiacciate come la proiezione di un cilindro: la carta si avvolge sul rullo.
+const K = 5, CURVA = Math.PI / 2 - 1;
+const TH = Array.from({ length: K + 1 }, (_, k) => (k * Math.PI) / (2 * K));
+const SEN = TH.map(Math.sin);
+const copie = [];
+const fasce = [-1, 1].map((dir) => Array.from({ length: K }, (_, k) => {
+  const clip = document.createElement('div');
+  clip.className = 'striscia';
+  const c = carta.cloneNode(true);
+  c.removeAttribute('id'); c.removeAttribute('aria-label'); c.classList.add('clone');
+  c.setAttribute('aria-hidden', 'true'); c.inert = true;
+  clip.append(c); pergamena.insertBefore(clip, ombre[0]);
+  copie.push(c);
+  return { clip, carta: c, dir, sY: (SEN[k + 1] - SEN[k]) / (TH[k + 1] - TH[k]), alt: -1 };
+}));
+const paragrafi = [...carta.querySelectorAll('.testo p')];
+const paragrafiCopie = copie.map((c) => [...c.querySelectorAll('.testo p')]);
+
+const g = {};
+let vhStabile = 0, vwPrima = 0;
+function misura() {
+  const vw = root.clientWidth, vh = innerHeight;
+  // l'altezza cambia quando la barra del browser sul telefono si chiude: si ignora, se no la carta salta
+  if (vw !== vwPrima || !vhStabile || Math.abs(vh - vhStabile) > 160) { vhStabile = vh; vwPrima = vw; }
+  g.H = vw < 600 ? 24 : 30;
+  g.R = Math.round(limita(vhStabile * 0.11, 44, 96));
+  g.topFix = Math.round(limita(vhStabile * 0.018, 8, 18));
+  g.L = carta.offsetHeight;
+  g.yC = Math.round(vhStabile * 0.8 - g.H);
+  g.y0 = g.yC + g.H;
+  g.chiusa = g.y0 + g.L - (g.topFix + g.H);
+  g.corsa = g.chiusa + Math.round(vhStabile * 0.6);
+  root.style.setProperty('--H', g.H + 'px');
+  root.style.setProperty('--corsa', g.corsa + 'px');
+  sporco = true;
+}
+
+function fascia(strisce, y, u, r) {
+  for (let k = 0; k < K; k++) {
+    const st = strisce[k];
+    const a = pixel(y + st.dir * r * SEN[k]), z = pixel(y + st.dir * r * SEN[k + 1]);
+    const alto = Math.min(a, z), alt = Math.abs(z - a);
+    if (alt !== st.alt) { st.clip.style.height = alt + 'px'; st.alt = alt; }
+    if (!alt) continue;
+    const uk = u + st.dir * r * TH[k];
+    st.clip.style.transform = `translate3d(0,${alto}px,0)`;
+    st.carta.style.transform = `translate3d(0,${a - alto - st.sY * uk}px,0) scaleY(${st.sY})`;
+  }
+}
+
+let altPiano = -1;
+function disponi(s, vh) {
+  const Ptop = g.y0 - s, Pbot = Ptop + g.L;
+  const suY = Math.max(g.topFix, g.yC - s), wTop = suY + g.H;
+  const giuFix = vh - g.topFix - g.H;
+  const giuApre = Math.min(giuFix, g.y0 + (s * (giuFix - g.y0)) / (g.yC - g.topFix));
+  const wBot = Math.max(wTop, Math.min(giuApre, Pbot));
+  const luce = wBot - wTop;
+  let rT = limita((wTop - Ptop) / CURVA, 0, g.R), rB = limita((Pbot - wBot) / CURVA, 0, g.R);
+  if (rT + rB > luce) { const f = luce / (rT + rB); rT *= f; rB *= f; }
+  const yS = pixel(wTop + rT), yB = pixel(wBot - rB);
+
+  piano.style.transform = `translate3d(0,${yS}px,0)`;
+  const ap = Math.max(0, yB - yS);
+  if (ap !== altPiano) { piano.style.height = ap + 'px'; altPiano = ap; }
+  carta.style.transform = `translate3d(0,${pixel(Ptop - yS)}px,0)`;
+  fascia(fasce[0], yS, yS - Ptop, rT);
+  fascia(fasce[1], yB, yB - Ptop, rB);
+  ombre[0].style.transform = `translate3d(0,${wTop}px,0) scaleY(${rT / 100})`;
+  ombre[1].style.transform = `translate3d(0,${wBot - 100}px,0) scaleY(${rB / 100})`;
+  alone.style.transform = `translate3d(0,${wTop}px,0) scaleY(${luce / 100})`;
+
+  rulli[0].style.transform = `translate3d(0,${suY}px,0)`;
+  rulli[1].style.transform = `translate3d(0,${wBot}px,0)`;
+  // il rotolo ingrossa con la carta avvolta (sezione di una spirale: raggio come radice della lunghezza)
+  const avvolta = limita(wTop - Ptop, 0, g.L), resta = limita(Pbot - wBot, 0, g.L);
+  rotoli[0].style.transform = `scaleY(${Math.sqrt(1 + (1.1 * avvolta) / g.L)})`;
+  rotoli[1].style.transform = `scaleY(${Math.sqrt(1 + (1.1 * resta) / g.L)})`;
+  const giro = (s * 0.6) % 512;
+  giri[0].style.transform = `translate3d(0,${-giro}px,0)`;
+  giri[1].style.transform = `translate3d(0,${giro - 512}px,0)`;
+
+  const p = limita(s / g.corsa, 0, 1);
+  // ci si avvicina al varco mentre si legge, poi si torna indietro mentre la pergamena si chiude
+  const z = `scale(${1 + 0.32 * liscio(0.03, 0.45, p) * (1 - liscio(0.78, 1, p))})`;
+  s0.style.transform = s1.style.transform = s2.style.transform = z;
+  s1.style.opacity = liscio(0.5, 0.93, p);
+  s2.style.opacity = liscio(0.86, 1, p);
+  buio.style.opacity = 0.3 * liscio(0, 0.1, p) * (1 - liscio(0.8, 0.97, p));
+  const via = liscio(0, vhStabile * 0.42, s);
+  apertura.style.opacity = 1 - via;
+  apertura.style.transform = `translate3d(0,${-s * 0.3}px,0)`;
+}
+
+// ---- cenere: poche scaglie su una tela a risoluzione ridotta
+function cenere(c) {
+  const ctx = c.getContext('2d'), k = 0.6;
+  const scintilla = tela(32, 32);
+  {
+    const x = scintilla.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(255,222,160,1)'); gr.addColorStop(0.22, 'rgba(255,140,60,.75)'); gr.addColorStop(1, 'rgba(226,101,46,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 32, 32);
+  }
+  let w = 0, h = 0;
+  const parti = [], faville = [];
+  const nasci = (p, ovunque) => {
+    p.z = 0.35 + Math.random() * 0.65;
+    p.x = Math.random() * w; p.y = ovunque ? Math.random() * h : -8;
+    p.r = (0.9 + Math.random() * 1.6) * p.z * k * 1.6;
+    p.v = (10 + 22 * p.z) * k; p.f = 0.3 + Math.random() * 0.9; p.fase = Math.random() * 6.28;
+    p.brace = Math.random() < 0.07;
+    return p;
+  };
+  return {
+    dimensiona() {
+      w = c.width = Math.ceil(innerWidth * k); h = c.height = Math.ceil(innerHeight * k);
+      const n = innerWidth < 640 ? 24 : 46;
+      while (parti.length < n) parti.push(nasci({}, true));
+      parti.length = n;
+    },
+    // una manciata di faville che salgono da un rettangolo dello schermo
+    accendi(r) {
+      for (let i = 0; i < 26; i++) {
+        faville.push({ x: (r.left + Math.random() * r.width) * k, y: (r.top + r.height * (0.3 + 0.6 * Math.random())) * k,
+          vx: (Math.random() - 0.5) * 40 * k, vy: -(25 + Math.random() * 70) * k, vita: 0, durata: 1.2 + Math.random() * 1.8, r: (1.5 + Math.random() * 2.5) * k });
+      }
+    },
+    passo(t, dt, ds) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#c4bdb0';
+      for (const p of parti) {
+        p.y += p.v * dt - ds * k * p.z * 0.25;
+        p.x += (6 * k + Math.sin(t * p.f + p.fase) * 9 * k * p.z) * dt;
+        if (p.y > h + 8 || p.y < -40 || p.x > w + 8) nasci(p, false);
+        if (p.brace) {
+          const s = p.r * 7;
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = (0.5 + 0.5 * Math.sin(t * 3.1 + p.fase)) * 0.8 * p.z;
+          ctx.drawImage(scintilla, p.x - s / 2, p.y - s / 2, s, s);
+          ctx.globalCompositeOperation = 'source-over';
+        } else {
+          ctx.globalAlpha = 0.18 + 0.4 * p.z;
+          const a = Math.sin(t * p.f * 1.7 + p.fase);
+          ctx.fillRect(p.x, p.y, p.r * (1.2 + 0.6 * a), p.r * (1.2 - 0.5 * a));
+        }
+      }
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = faville.length - 1; i >= 0; i--) {
+        const f = faville[i];
+        f.vita += dt;
+        if (f.vita > f.durata) { faville.splice(i, 1); continue; }
+        f.vy += 18 * k * dt; f.x += (f.vx + Math.sin(t * 5 + i) * 10 * k) * dt; f.y += f.vy * dt - ds * k;
+        const s = f.r * 6 * (1 - 0.5 * f.vita / f.durata);
+        ctx.globalAlpha = Math.pow(1 - f.vita / f.durata, 1.5);
+        ctx.drawImage(scintilla, f.x - s / 2, f.y - s / 2, s, s);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    },
+  };
+}
+
+// ---- inchiostro: ogni paragrafo affiora quando entra nella parte alta dello schermo
+const vede = new IntersectionObserver((voci) => {
+  for (const v of voci) {
+    if (!v.isIntersecting) continue;
+    const i = paragrafi.indexOf(v.target);
+    v.target.classList.add('inchiostro');
+    for (const ps of paragrafiCopie) ps[i].classList.add('inchiostro');
+    vede.unobserve(v.target);
+  }
+}, { rootMargin: '0px 0px -12% 0px' });
+paragrafi.forEach((p) => vede.observe(p));
+
+const entraci = $('.entraci', carta);
+const chiama = new IntersectionObserver(([v]) => {
+  if (!v.isIntersecting) return;
+  entraci.classList.add('arde');
+  carta.classList.add('chiama');
+  polvere.accendi(v.boundingClientRect);
+  chiama.disconnect();
+}, { rootMargin: '-30% 0px -30% 0px' });
+chiama.observe(entraci);
+
+root.classList.add('scorre');
+const polvere = cenere($('.cenere'));
+let sporco = true;
+misura();
+polvere.dimensiona();
+new ResizeObserver(misura).observe(carta);
+addEventListener('resize', () => { misura(); polvere.dimensiona(); });
+document.fonts.ready.then(misura);
+sfondo();
+
+let ultimaS = -1, ultimaVh = 0, prima = 0, giro = 0;
+function fotogramma(t) {
+  giro = requestAnimationFrame(fotogramma);
+  const s = scrollY, vh = innerHeight;
+  const dt = prima ? Math.min(0.05, (t - prima) / 1000) : 0;
+  prima = t;
+  const ds = ultimaS < 0 ? 0 : s - ultimaS;
+  if (sporco || s !== ultimaS || vh !== ultimaVh) { disponi(s, vh); ultimaS = s; ultimaVh = vh; sporco = false; }
+  polvere.passo(t / 1000, dt, ds);
+}
+document.addEventListener('visibilitychange', () => {
+  cancelAnimationFrame(giro);
+  if (!document.hidden) { prima = 0; giro = requestAnimationFrame(fotogramma); }
+});
+giro = requestAnimationFrame(fotogramma);
+
+
+})();
+</script>
+</body>
+</html>
