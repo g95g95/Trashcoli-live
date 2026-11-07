@@ -1,4 +1,4 @@
-"""Pipeline: foto -> mondo 2.5D esplorabile ("Dentro Faraona").
+"""Pipeline: foto -> mondo 2.5D esplorabile ("Dentro Faraone").
 
 Per ogni foto:
   1. stima della profondità relativa (Depth Anything ViT-S, ONNX)

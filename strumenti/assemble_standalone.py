@@ -1,4 +1,4 @@
-"""Crea Dentro_Faraona.html: un solo file con motore, foto e profondità incorporati (si apre con doppio clic)."""
+"""Crea Dentro_Faraone.html: un solo file con motore, foto e profondità incorporati (si apre con doppio clic)."""
 import base64, json, re, sys
 from pathlib import Path
 

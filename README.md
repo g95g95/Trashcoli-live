@@ -1,13 +1,13 @@
 # Trashcoli-live
 repo per mostrare un world model di trashcoli
 
-## Dentro Faraona
+## Dentro Faraone
 
-Dieci luoghi di Faraona ricostruiti in 3D dalle foto dei Trashcoli, cinque fuori e cinque dentro, da esplorare in prima persona sotto una pioggia di cenere. Le foto sono stanze affacciate su un unico corridoio, e si passa dall'una all'altra camminando. La prima stanza, *Dentro la cattedrale*, è una chiesa intera ricostruita da due foto scattate ai suoi due capi.
+Dieci luoghi di Faraone ricostruiti in 3D dalle foto dei Trashcoli, cinque fuori e cinque dentro, da esplorare in prima persona sotto una pioggia di cenere. Le foto sono stanze affacciate su un unico corridoio, e si passa dall'una all'altra camminando. La prima stanza, *Dentro la cattedrale*, è una chiesa intera ricostruita da due foto scattate ai suoi due capi.
 
 **Gioca online:** https://g95g95.github.io/Trashcoli-live/
 
-<img src="qr.png" alt="QR code che apre Dentro Faraona su g95g95.github.io/Trashcoli-live" width="220">
+<img src="qr.png" alt="QR code che apre Dentro Faraone su g95g95.github.io/Trashcoli-live" width="220">
 
 Versione da stampare, con titolo e indirizzo sotto il codice: [`qr_stampa.png`](qr_stampa.png). Versione vettoriale, che si ingrandisce senza perdere qualità: [`qr.svg`](qr.svg).
 
@@ -26,7 +26,7 @@ La porta 1 è il portone di una chiesa, e il gioco comincia lì, sulla cantoria:
 
 ## Altri modi per avviarlo
 
-- **File unico:** `Dentro_Faraona.html` contiene tutto (motore 3D, foto, profondità). Si apre con doppio clic, anche offline, e si può passare su WhatsApp o su una chiavetta.
+- **File unico:** `Dentro_Faraone.html` contiene tutto (motore 3D, foto, profondità). Si apre con doppio clic, anche offline, e si può passare su WhatsApp o su una chiavetta.
 - **In locale dalla cartella del repo:** `index.html` carica i file di `dati/`, e i browser bloccano questo caricamento se la pagina è aperta come file dal disco. Serve un piccolo server web locale:
   ```
   python3 -m http.server 8000
@@ -56,7 +56,7 @@ La profondità viene stimata con Depth Anything ViT-S, una rete neurale che da u
 2. Scarica il modello (circa 100 MB): https://github.com/fabio-sim/Depth-Anything-ONNX/releases/download/v1.0.0/depth_anything_vits14.onnx
 3. Metti le foto in una cartella e modifica la lista `ROUTE` in cima a `strumenti/build_world.py`. Per ogni foto indichi nome del file, etichetta, gruppo (`Fuori` o `Dentro`), inclinazione approssimativa della macchina in gradi (positiva verso l'alto) e profondità tipica in metri. Inclinazione e profondità servono solo quando la pipeline non trova né il pavimento né le linee verticali.
 4. Lancia `python3 strumenti/build_world.py <cartella_foto> dati <modello.onnx>`. Ci vogliono pochi secondi a foto. Viene creata anche una cartella `diag/` con le mappe di profondità e le griglie calpestabili, per controllare il risultato.
-5. Per rifare il file unico: `python3 strumenti/assemble_standalone.py strumenti/pagina_sorgente.html dati strumenti/three.min.js Dentro_Faraona.html`
+5. Per rifare il file unico: `python3 strumenti/assemble_standalone.py strumenti/pagina_sorgente.html dati strumenti/three.min.js Dentro_Faraone.html`
 
 ## Limiti
 

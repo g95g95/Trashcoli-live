@@ -26,7 +26,7 @@ Obiettivo: il manifesto dei Trashcoli come pergamena che si srotola mentre scorr
 
 ## Regola: il manifesto e il gioco non si parlano
 - Nessun link, pulsante o rimando dall'uno all'altro, in nessuna delle due direzioni.
-- Nessuna modifica al gioco (`index.html`, `Dentro_Faraona.html`).
+- Nessuna modifica al gioco (`index.html`, `Dentro_Faraone.html`).
 
 ## Verifica
 1. Server locale (`python -m http.server`) e screenshot in Edge headless a 1440 px e a 390 px.
