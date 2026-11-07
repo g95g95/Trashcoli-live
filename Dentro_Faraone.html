@@ -122,6 +122,7 @@ body {
       <button class="btn" id="bAsh" type="button" title="Intensità della cenere">Cenere: fitta</button>
       <button class="btn" id="bTorch" type="button" aria-pressed="false" title="Torcia (F)">Torcia</button>
       <button class="btn" id="bAudio" type="button" aria-pressed="false" title="Vento">Vento</button>
+      <button class="btn touch" id="bGyro" type="button" aria-pressed="false" title="Guarda intorno inclinando il telefono">Giroscopio</button>
     </div>
   </div>
   <div></div>
@@ -156,6 +157,7 @@ body {
     <div class="keys touch">
       <kbd>Pollice sinistro</kbd><span>trascina per camminare</span>
       <kbd>Resto dello schermo</kbd><span>trascina per guardare</span>
+      <kbd>Inclina il telefono</kbd><span>guardati intorno · <kbd>Giroscopio</kbd> lo spegne</span>
     </div>
     <button class="enter" id="enter" type="button" disabled>Entra</button>
     <span class="load" id="load">Carico le stanze…</span>
@@ -1163,6 +1165,42 @@ const endPtr = (e) => {
 canvas.addEventListener("pointerup", endPtr);
 canvas.addEventListener("pointercancel", endPtr);
 
+// ---------- input: giroscopio (telefono) ----------
+// l'orientamento del telefono gira lo sguardo; si somma al trascinamento col dito
+const gyro = { on: false, bound: false, last: null };
+const gE = new THREE.Euler(), gQ = new THREE.Quaternion(), gQs = new THREE.Quaternion();
+const gZ = new THREE.Vector3(0, 0, 1), gQ1 = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2);
+function onOrient(e) {
+  if (!gyro.on || e.alpha === null || e.beta === null) return;
+  const D = THREE.MathUtils.DEG2RAD;
+  const so = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  gQ.setFromEuler(gE.set(e.beta * D, e.alpha * D, -e.gamma * D, "YXZ")).multiply(gQ1)
+    .multiply(gQs.setFromAxisAngle(gZ, -so * D));
+  gE.setFromQuaternion(gQ, "YXZ");
+  const now = { yaw: gE.y, pitch: gE.x }, prev = gyro.last;
+  gyro.last = now;
+  if (!prev || busy || !$("docView").hidden) return;
+  let dy = now.yaw - prev.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  const dp = now.pitch - prev.pitch;
+  // vicino alla verticale lo yaw del sensore impazzisce: si scartano i salti
+  if (Math.abs(now.pitch) > 1.35 || Math.abs(dy) > 0.5 || Math.abs(dp) > 0.5) return;
+  player.yaw += dy;
+  player.pitch = THREE.MathUtils.clamp(player.pitch + dp, -1.35, 1.35);
+}
+async function setGyro(on) {
+  const DOE = window.DeviceOrientationEvent;
+  if (on && DOE && typeof DOE.requestPermission === "function") {   // iPhone: chiede il permesso
+    try { if ((await DOE.requestPermission()) !== "granted") on = false; } catch (_) { on = false; }
+  }
+  if (on && !DOE) on = false;
+  if (on && !gyro.bound) { window.addEventListener("deviceorientation", onOrient); gyro.bound = true; }
+  gyro.on = on; gyro.last = null;
+  $("bGyro").setAttribute("aria-pressed", String(on));
+  // nessun sensore: dopo un attimo senza dati il pulsante si spegne da solo
+  if (on) setTimeout(() => { if (gyro.on && !gyro.last) setGyro(false); }, 1500);
+}
+$("bGyro").addEventListener("click", () => setGyro($("bGyro").getAttribute("aria-pressed") !== "true"));
+
 // ---------- pulsanti ----------
 let ashLevel = 1;
 $("bAsh").addEventListener("click", () => {
@@ -1367,6 +1405,8 @@ $("enter").addEventListener("click", () => {
   hudHidden = false;
   if (window.matchMedia("(pointer: fine)").matches && canvas.requestPointerLock) {
     try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+  } else if (window.matchMedia("(pointer: coarse)").matches) {
+    setGyro(true);
   }
 });
 window.__faraona = { player, goTo, U };
